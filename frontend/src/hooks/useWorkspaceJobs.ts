@@ -75,6 +75,12 @@ export function useWorkspaceJobs() {
     }
   }, []);
 
+  useEffect(() => {
+    const syncApiKeyState = () => setHasApiKey(hasAnyApiKey());
+    window.addEventListener('nova-model-registry-updated', syncApiKeyState);
+    return () => window.removeEventListener('nova-model-registry-updated', syncApiKeyState);
+  }, []);
+
   const persistJobs = useCallback((updater: (prev: StoredJob[]) => StoredJob[]) => {
     setJobs(prev => {
       const next = updater(prev);

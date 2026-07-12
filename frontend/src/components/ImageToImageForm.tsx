@@ -211,6 +211,44 @@ export function ImageToImageForm({
     }
   };
 
+  const applyModelSelection = useCallback((nextModel: ModelId) => {
+    if (!nextModel) return;
+    const validSizes = getValidOutputSizes(nextModel);
+    const nextOutputSize: OutputSize = outputSize === 'auto' && validSizes.includes('auto')
+      ? 'auto'
+      : (validSizes.includes(outputSize) ? outputSize : validSizes[0]);
+    const nextCustomSize = supportsCustomSize(nextModel) && nextOutputSize !== 'auto'
+      ? normalizeCustomImageSize(customSize, getCustomSizeMaxSide(nextModel))
+      : undefined;
+    const validRatios = getAspectRatioOptions(nextModel, nextOutputSize).map(option => option.value);
+    const nextAspectRatio: AspectRatio = validRatios.includes(aspectRatio)
+      ? aspectRatio
+      : (validRatios[0] || '1:1');
+
+    setModel(nextModel);
+    setOutputSize(nextOutputSize);
+    setCustomSize(nextCustomSize);
+    setAspectRatio(nextAspectRatio);
+    setGptImageAdvancedParams(prev => getGptImageAdvancedParamsForModel(nextModel, prev));
+  }, [aspectRatio, customSize, outputSize]);
+
+  const syncModelFromRegistry = useCallback(() => {
+    const nextModel = normalizeModel(model);
+    if (!nextModel || nextModel === model) return;
+    applyModelSelection(nextModel);
+  }, [applyModelSelection, model]);
+
+  useEffect(() => {
+    const handleRegistryUpdated = () => syncModelFromRegistry();
+    window.addEventListener('nova-model-registry-updated', handleRegistryUpdated);
+    return () => window.removeEventListener('nova-model-registry-updated', handleRegistryUpdated);
+  }, [syncModelFromRegistry]);
+
+  useEffect(() => {
+    if (!settingsReady || disabled) return;
+    syncModelFromRegistry();
+  }, [disabled, settingsReady, syncModelFromRegistry]);
+
   const handleSizeChange = (newSize: OutputSize) => {
     setOutputSize(newSize);
     setCustomSize(undefined);

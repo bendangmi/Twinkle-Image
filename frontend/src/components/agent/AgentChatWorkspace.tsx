@@ -208,6 +208,7 @@ export function AgentChatWorkspace({ wideMode = false, disabled = false, onConfi
 
   const applyUserModel = useCallback((candidateModel: string) => {
     const nextModel = normalizeModel(candidateModel);
+    if (!nextModel) return;
     const validSizes = getValidOutputSizes(nextModel);
     const nextOutputSize = validSizes.includes(userOutputSize) ? userOutputSize : validSizes[0];
     const validRatios = getAspectRatioOptions(nextModel, nextOutputSize).map(option => option.value);
@@ -222,6 +223,12 @@ export function AgentChatWorkspace({ wideMode = false, disabled = false, onConfi
     setUserCustomSize(nextCustomSize);
     setUserAdvancedParams(prev => getGptImageAdvancedParamsForModel(nextModel, prev));
   }, [userAspectRatio, userCustomSize, userOutputSize]);
+
+  useEffect(() => {
+    const nextModel = normalizeModel(userModel || agent.imageModel);
+    if (!nextModel || nextModel === userModel) return;
+    applyUserModel(nextModel);
+  }, [agent.hasApiKey, agent.imageModel, applyUserModel, userModel]);
 
   const imageMap = useMemo(() => new Map(agent.images.map(img => [img.imgId, img])), [agent.images]);
 

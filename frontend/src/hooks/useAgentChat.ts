@@ -7,6 +7,7 @@ import { createNovaTask, getNovaTask, resolveImageTaskProvider, type ImageRefere
 import { fetchImageAsBlob } from '@/lib/image-downloader';
 import {
   getGptImageAdvancedParamsForModel,
+  normalizeModel,
   resolveAgentModel,
   type AgentModelCatalogEntry,
   type AgentResolvedLayout,
@@ -175,7 +176,7 @@ async function resultImageToBlob(ref: string): Promise<Blob> {
 
 export function useAgentChat() {
   const [ready, setReady] = useState(false);
-  const [hasApiKey] = useState(() => hasAnyApiKey());
+  const [hasApiKey, setHasApiKey] = useState(() => hasAnyApiKey());
   const [phase, setPhase] = useState<AgentPhase>('idle');
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [images, setImages] = useState<AgentImageRecord[]>([]);
@@ -211,6 +212,20 @@ export function useAgentChat() {
   /** 镜像 imageModel state，供 runChat 回调中同步读取 */
   const imageModelRef = useRef(imageModel);
   useEffect(() => { imageModelRef.current = imageModel; }, [imageModel]);
+
+  useEffect(() => {
+    const syncRegistryState = () => {
+      setHasApiKey(hasAnyApiKey());
+      const nextModel = normalizeModel(imageModelRef.current);
+      if (!nextModel || nextModel === imageModelRef.current) return;
+      imageModelRef.current = nextModel;
+      setImageModelState(nextModel);
+      void saveImageModel(nextModel);
+    };
+
+    window.addEventListener('nova-model-registry-updated', syncRegistryState);
+    return () => window.removeEventListener('nova-model-registry-updated', syncRegistryState);
+  }, []);
 
   const getAgentTextModelConfig = useCallback(() => {
     const configured = getDefaultConfiguredTextModel('agent');
