@@ -142,7 +142,7 @@ export function ImageGenerationWorkbench({
   const aspectRatioOptions = useMemo(() => getAspectRatioOptions(model, outputSize), [model, outputSize]);
   const currentMode: WorkbenchMode = pendingFiles.length > 0 ? 'image-to-image' : 'text-to-image';
   const autoLayoutLocked = outputSize === 'auto';
-  const disabledMessage = '请先在设置中配置 Nova API 密钥，配置完成后即可开始生成图片。';
+  const disabledMessage = '请先在设置中配置 API Key，配置完成后即可开始生成图片。';
 
   const handleParamsChange = useCallback((patch: Partial<GenerationParamsValue>) => {
     if (patch.model !== undefined) setModel(patch.model);

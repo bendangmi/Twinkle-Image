@@ -341,7 +341,7 @@ export async function exportAllData(onProgress?: ProgressCallback): Promise<Blob
     files['metadata.json'] = jsonToU8({
         version: process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0',
         exportDate: new Date().toISOString(),
-        appName: 'Nova Image',
+        appName: 'Image',
     });
 
     // 添加 localStorage 数据
@@ -650,5 +650,5 @@ export function generateBackupFilename(): string {
     const now = new Date();
     const dateStr = now.toISOString().split('T')[0];
     const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-');
-    return `nova-backup-${dateStr}-${timeStr}.zip`;
+    return `image-backup-${dateStr}-${timeStr}.zip`;
 }

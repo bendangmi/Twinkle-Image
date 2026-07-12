@@ -70,7 +70,7 @@ export function TextToImageForm({ onSubmit, disabled = false, onDraftConsumed, o
   const [prompt, setPrompt] = useState('');
   const [queue, setQueue] = useState<QueuedPrompt[]>([]);
 
-  const disabledMessage = '请先在设置中配置 Nova API 密钥，配置完成后即可开始生成图片。';
+  const disabledMessage = '请先在设置中配置 API Key，配置完成后即可开始生成图片。';
 
   const [model, setModel] = useState<ModelId>('gemini-3-pro-image-preview');
   const [outputSize, setOutputSize] = useState<OutputSize>('1K');

@@ -28,7 +28,7 @@ export function MissingApiKeyDialog({ open, onOpenChange, onConfigure }: Missing
         <DialogHeader>
           <DialogTitle>请先配置 API 密钥</DialogTitle>
           <DialogDescription>
-            Nova 模式需要先配置 API 密钥，配置完成后即可生成或转换图片。
+            需要先配置 API Key，配置完成后即可生成或转换图片。
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

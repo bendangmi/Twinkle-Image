@@ -114,7 +114,7 @@ export function ImageToImageForm({
   const [prompt, setPrompt] = useState('');
   const [pendingFiles, setPendingFiles] = useState<UploadedFile[]>([]);
 
-  const disabledMessage = '请先在设置中配置 Nova API 密钥，配置完成后即可开始转换图片。';
+  const disabledMessage = '请先在设置中配置 API Key，配置完成后即可开始转换图片。';
 
   // 先使用稳定默认值，避免 SSR/CSR 首帧不一致；挂载后再恢复缓存
   const [model, setModel] = useState<ModelId>('gemini-3-pro-image-preview');

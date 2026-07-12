@@ -402,7 +402,7 @@ export function ReversePromptForm({ wideMode = false, disabled = false, onConfig
             <div className="max-w-md">
               <p className="text-base font-medium text-foreground">需要先配置令牌</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                请先在设置中配置 Nova API 密钥，配置完成后即可使用反推提示词功能。
+                请先在设置中配置 API Key，配置完成后即可使用反推提示词功能。
               </p>
             </div>
             <Button onClick={() => setMissingApiKeyDialogOpen(true)}>配置</Button>

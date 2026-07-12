@@ -554,7 +554,7 @@ export function AssetsWorkspace({ wideMode = false, active = true }: AssetsWorks
       const url = URL.createObjectURL(content);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `nova-assets-${Date.now()}.zip`;
+      link.download = `image-assets-${Date.now()}.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

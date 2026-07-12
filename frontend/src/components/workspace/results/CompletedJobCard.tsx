@@ -85,7 +85,7 @@ export const CompletedJobCard = memo(function CompletedJobCard({ job, onClear, o
   const resolvedBlobUrlsRef = useRef<string[]>([]);
   const actionPayloads = useMemo<ImageActionPayload[]>(() => sourceImages.map((imageRef, index) => ({
     id: `${job.id}-${index}`,
-    name: `nova-image-${job.id.slice(0, 8)}${sourceImages.length > 1 ? `-${index + 1}` : ''}`,
+    name: `image-${job.id.slice(0, 8)}${sourceImages.length > 1 ? `-${index + 1}` : ''}`,
     storedRef: { jobId: job.id, imageRef, imageIndex: index },
     sourceKind: job.mode === 'image-to-image' ? 'image-to-image' : 'text-to-image',
     sourceLabel: job.mode === 'image-to-image' ? '图生图历史结果' : '文生图历史结果',

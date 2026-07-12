@@ -3,10 +3,11 @@ services:
     image: tianjiangqiji/nova-image-studio:latest
     container_name: nova-image-studio
     ports:
-      - "3000:3000"
+      - "3002:3000"
     volumes:
       - ./data:/app/backend/data
       - ./blacklist.json:/app/backend/blacklist.json
       - ./prompts.json:/app/backend/prompts.json
+      - ./.env:/app/.env
       - ./.env:/app/backend/.env
     restart: unless-stopped

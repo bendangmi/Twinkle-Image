@@ -65,6 +65,9 @@ export interface NovaModelRegistry {
 }
 
 const REGISTRY_KEY = 'nova-model-registry';
+const SMART_AGI_BASE_URL = 'https://big-model.smart-agi.com';
+const DEFAULT_IMAGE_MODEL_ID = 'default-gpt-image-2';
+const DEFAULT_TEXT_MODEL_ID = 'default-gpt-5-5';
 
 export const BUILTIN_IMAGE_PRESETS: Record<BuiltinImagePresetId, BuiltinImagePreset> = {
   'gemini-2.5-flash-image': {
@@ -112,7 +115,7 @@ export const BUILTIN_IMAGE_PRESETS: Record<BuiltinImagePresetId, BuiltinImagePre
     protocol: 'openai',
     name: 'GPT Image 2',
     modelId: 'gpt-image-2',
-    baseUrl: 'https://api.openai.com',
+    baseUrl: SMART_AGI_BASE_URL,
     maxRefImages: 16,
     maxOutputSize: '4K',
     supportsAdvancedParams: true,
@@ -127,9 +130,9 @@ export const BUILTIN_IMAGE_PRESET_OPTIONS = Object.values(BUILTIN_IMAGE_PRESETS)
 export const DEFAULT_TEXT_MODEL_TEMPLATES = [
   {
     protocol: 'openai-responses' as const,
-    name: 'GPT 5.4 Mini',
-    modelId: 'gpt-5.4-mini',
-    baseUrl: 'https://api.openai.com',
+    name: 'GPT 5.5',
+    modelId: 'gpt-5.5',
+    baseUrl: SMART_AGI_BASE_URL,
     note: getTextProviderDescription('openai-responses'),
   },
   {
@@ -199,8 +202,8 @@ function normalizeImageModelConfig(raw: Partial<ImageModelConfig>): ImageModelCo
   return {
     id,
     protocol,
-    name: String(raw.name || '').trim(),
-    modelId: String(raw.modelId || '').trim(),
+    name: String(raw.name || preset.name).trim(),
+    modelId: String(raw.modelId || preset.modelId).trim(),
     apiKey: String(raw.apiKey || '').trim(),
     baseUrl: String(raw.baseUrl || preset.baseUrl).trim(),
     builtinPreset: presetId,
@@ -222,8 +225,8 @@ function normalizeTextModelConfig(raw: Partial<TextModelConfig>): TextModelConfi
   return {
     id,
     protocol,
-    name: String(raw.name || '').trim(),
-    modelId: String(raw.modelId || '').trim(),
+    name: String(raw.name || template.name).trim(),
+    modelId: String(raw.modelId || template.modelId).trim(),
     apiKey: String(raw.apiKey || '').trim(),
     baseUrl: String(raw.baseUrl || template.baseUrl).trim(),
     note: typeof raw.note === 'string' ? raw.note : (template.note || getTextProviderDescription(protocol)),
@@ -283,10 +286,39 @@ function ensureDefaults(raw: Partial<DefaultModels> | undefined, imageModels: Im
   return next;
 }
 
+function createDefaultImageModel(): ImageModelConfig {
+  const preset = BUILTIN_IMAGE_PRESETS['gpt-image-2'];
+  return {
+    id: DEFAULT_IMAGE_MODEL_ID,
+    protocol: preset.protocol,
+    name: preset.name,
+    modelId: preset.modelId,
+    apiKey: '',
+    baseUrl: preset.baseUrl,
+    builtinPreset: preset.id,
+    maxRefImages: preset.maxRefImages,
+    maxOutputSize: preset.maxOutputSize,
+    supportsAdvancedParams: preset.supportsAdvancedParams,
+  };
+}
+
+function createDefaultTextModel(): TextModelConfig {
+  const template = getDefaultTextModelTemplate('openai-responses');
+  return {
+    id: DEFAULT_TEXT_MODEL_ID,
+    protocol: template.protocol,
+    name: template.name,
+    modelId: template.modelId,
+    apiKey: '',
+    baseUrl: template.baseUrl,
+    note: template.note,
+  };
+}
+
 function getInitialRegistry(): NovaModelRegistry {
   return {
-    imageModels: [],
-    textModels: [],
+    imageModels: [createDefaultImageModel()],
+    textModels: [createDefaultTextModel()],
     defaults: DEFAULT_DEFAULTS,
   };
 }
@@ -304,8 +336,10 @@ export function loadRegistry(): NovaModelRegistry {
   const parsed = JSON.parse(raw) as Partial<NovaModelRegistry>;
   const imageModels = ensureImageModels(parsed.imageModels);
   const textModels = ensureTextModels(parsed.textModels);
-  const defaults = ensureDefaults(parsed.defaults, imageModels, textModels);
-  return { imageModels, textModels, defaults };
+  const seededImageModels = imageModels.length > 0 ? imageModels : [createDefaultImageModel()];
+  const seededTextModels = textModels.length > 0 ? textModels : [createDefaultTextModel()];
+  const defaults = ensureDefaults(parsed.defaults, seededImageModels, seededTextModels);
+  return { imageModels: seededImageModels, textModels: seededTextModels, defaults };
 }
 
 export function saveRegistry(registry: NovaModelRegistry): void {
