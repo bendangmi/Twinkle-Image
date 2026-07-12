@@ -3,10 +3,11 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 
+import { getDefaultModelId } from "@/lib/gemini-config";
 import type { CanvasGenerationConfig } from "../canvas-generation-service";
 
 export const defaultCanvasConfig: CanvasGenerationConfig = {
-  model: "gemini-3-pro-image-preview",
+  model: getDefaultModelId(),
   outputSize: "1K",
   aspectRatio: "1:1",
   customSize: undefined,

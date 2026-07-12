@@ -127,8 +127,8 @@ function normalizeDefaults(
   const firstTextModelId = completeTextModels[0]?.id || '';
 
   return {
-    textToImage: completeImageModels.some((model) => model.id === defaults.textToImage) ? defaults.textToImage : firstImageModelId,
-    imageToImage: completeImageModels.some((model) => model.id === defaults.imageToImage) ? defaults.imageToImage : firstImageModelId,
+    textToImage: firstImageModelId,
+    imageToImage: firstImageModelId,
     reversePrompt: completeTextModels.some((model) => model.id === defaults.reversePrompt) ? defaults.reversePrompt : firstTextModelId,
     agent: completeTextModels.some((model) => model.id === defaults.agent) ? defaults.agent : firstTextModelId,
     promptOptimize: completeTextModels.some((model) => model.id === defaults.promptOptimize) ? defaults.promptOptimize : firstTextModelId,

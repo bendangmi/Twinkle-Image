@@ -276,8 +276,8 @@ function ensureDefaults(raw: Partial<DefaultModels> | undefined, imageModels: Im
   const firstTextModelId = completeTextModels[0]?.id || '';
   const next = { ...DEFAULT_DEFAULTS, ...raw };
 
-  if (!completeImageModels.some((model) => model.id === next.textToImage)) next.textToImage = firstImageModelId;
-  if (!completeImageModels.some((model) => model.id === next.imageToImage)) next.imageToImage = firstImageModelId;
+  next.textToImage = firstImageModelId;
+  next.imageToImage = firstImageModelId;
   if (!completeTextModels.some((model) => model.id === next.reversePrompt)) next.reversePrompt = firstTextModelId;
   if (!completeTextModels.some((model) => model.id === next.agent)) next.agent = firstTextModelId;
   if (!completeTextModels.some((model) => model.id === next.promptOptimize)) next.promptOptimize = firstTextModelId;
@@ -366,9 +366,9 @@ export function getTextModelById(registry: NovaModelRegistry, id: string): TextM
 
 export function getDefaultImageModel(
   registry: NovaModelRegistry,
-  task: keyof Pick<DefaultModels, 'textToImage' | 'imageToImage'>,
+  _task: keyof Pick<DefaultModels, 'textToImage' | 'imageToImage'>,
 ): ImageModelConfig | undefined {
-  return getImageModelById(registry, registry.defaults[task]);
+  return getCompleteImageModels(registry)[0];
 }
 
 export function getDefaultTextModel(

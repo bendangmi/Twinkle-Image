@@ -16,7 +16,7 @@ import { streamPromptOptimize, type StreamPromptOptimizeHandle } from '@/lib/pro
 import { loadJsonFromStorage, saveJsonToStorage } from '@/lib/settings-storage';
 import { requireDefaultConfiguredTextModel } from '@/lib/model-endpoints';
 import { addTextAsset, getAssetBlob, type ImageAsset, type TextAsset } from '@/lib/asset-store';
-import { MODEL_IMAGE_LIMITS, MODEL_OPTIONS, type ModelId } from '@/lib/gemini-config';
+import { getDefaultModelId, MODEL_IMAGE_LIMITS, MODEL_OPTIONS, type ModelId } from '@/lib/gemini-config';
 import {
   DEFAULT_GPT_IMAGE_ADVANCED_PARAMS,
   detectClosestAspectRatio,
@@ -113,7 +113,7 @@ export function ImageGenerationWorkbench({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
 
-  const [model, setModel] = useState<ModelId>('gemini-3-pro-image-preview');
+  const [model, setModel] = useState<ModelId>(() => getDefaultModelId());
   const [outputSize, setOutputSize] = useState<OutputSize>('1K');
   const [customSize, setCustomSize] = useState<string | undefined>(undefined);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('1:1');

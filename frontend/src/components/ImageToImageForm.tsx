@@ -23,7 +23,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { MODEL_OPTIONS, MODEL_IMAGE_LIMITS, isGptImageModel, type ModelId } from '@/lib/gemini-config';
+import { getDefaultModelId, MODEL_OPTIONS, MODEL_IMAGE_LIMITS, isGptImageModel, type ModelId } from '@/lib/gemini-config';
 import {
   detectClosestAspectRatio,
   getAspectRatioOptions,
@@ -117,7 +117,7 @@ export function ImageToImageForm({
   const disabledMessage = '请先在设置中配置 API Key，配置完成后即可开始转换图片。';
 
   // 先使用稳定默认值，避免 SSR/CSR 首帧不一致；挂载后再恢复缓存
-  const [model, setModel] = useState<ModelId>('gemini-3-pro-image-preview');
+  const [model, setModel] = useState<ModelId>(() => getDefaultModelId());
   const [outputSize, setOutputSize] = useState<OutputSize>('1K');
   const [customSize, setCustomSize] = useState<string | undefined>(undefined);
   const [temperature, setTemperature] = useState<number>(1);

@@ -89,7 +89,7 @@ export function getBaseModelId(modelId: string): ModelId {
 }
 
 export function getDefaultModelId(): string {
-  return loadRegistry().defaults.textToImage;
+  return getRegistryImageModels()[0]?.id || '';
 }
 
 export function getMaxOutputSizesByModel(): Record<string, OutputSize[]> {
