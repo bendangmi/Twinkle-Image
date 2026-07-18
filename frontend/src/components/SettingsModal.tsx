@@ -209,7 +209,7 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
         next.maxOutputSize = preset.maxOutputSize;
         next.supportsAdvancedParams = preset.supportsAdvancedParams;
       }
-      if (patch.protocol === 'google') {
+      if (patch.protocol === 'google' || patch.protocol === 'grok') {
         next.supportsAdvancedParams = false;
       }
       return next;
@@ -458,6 +458,7 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
                         options={[
                           { value: 'google', label: 'Google' },
                           { value: 'openai', label: 'OpenAI Images' },
+                          { value: 'grok', label: 'Grok Images' },
                         ]}
                       />
                     </div>
@@ -494,7 +495,17 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
                     </div>
                     <div className="space-y-2">
                       <label className="text-xs text-muted-foreground">最大参考图数量</label>
-                      <Input type="number" min={1} value={selectedImageModel.maxRefImages} onChange={(event) => handleUpdateImageModel(selectedImageModel.id, { maxRefImages: Number(event.target.value) || 1 })} />
+                      <Input
+                        type="number"
+                        min={0}
+                        value={selectedImageModel.maxRefImages}
+                        onChange={(event) => {
+                          const next = Number(event.target.value);
+                          handleUpdateImageModel(selectedImageModel.id, {
+                            maxRefImages: Number.isFinite(next) && next >= 0 ? Math.floor(next) : 0,
+                          });
+                        }}
+                      />
                     </div>
                     <div className="space-y-2">
                       <label className="text-xs text-muted-foreground">最大分辨率</label>
