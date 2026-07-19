@@ -10,7 +10,7 @@ interface WorkspaceModeTabsProps {
 }
 
 const horizontalTriggerClass =
-  'group h-full min-h-0 min-w-0 gap-1 overflow-hidden whitespace-nowrap rounded-xl px-2 py-2 text-xs max-sm:w-14 max-sm:shrink-0 max-sm:flex-none max-sm:data-active:w-auto max-sm:data-active:min-w-[88px] sm:h-[calc(100%-1px)] sm:gap-2 sm:px-3 sm:py-2 sm:text-sm';
+  'group h-full min-h-0 min-w-0 gap-1 overflow-hidden whitespace-nowrap rounded-sm px-2 py-2 text-xs max-sm:w-14 max-sm:shrink-0 max-sm:flex-none max-sm:data-active:w-auto max-sm:data-active:min-w-[88px] sm:h-[calc(100%-1px)] sm:gap-2 sm:px-3 sm:py-2 sm:text-sm data-active:border-primary/35';
 
 const labelClass = 'max-sm:hidden max-sm:group-data-active:inline';
 
@@ -38,12 +38,12 @@ export function WorkspaceModeTabs({ wideMode = false, showPromptGallery = false 
   if (wideMode) {
     // 宽屏 → 垂直气泡侧边栏
     return (
-      <TabsList className="w-full flex-col gap-1.5 rounded-2xl border border-border bg-muted/50 p-2">
+      <TabsList className="w-full flex-col gap-1 border border-border bg-muted/45 p-1.5">
         {allTabs.map(({ value, icon: Icon, label }) => (
           <TabsTrigger
             key={value}
             value={value}
-            className="flex flex-row items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-medium data-active:bg-card data-active:text-foreground data-active:shadow-sm"
+            className="flex flex-row items-center gap-2 px-3 py-2.5 text-xs font-medium data-active:border-primary/35 data-active:bg-card data-active:text-foreground"
           >
             <Icon className="size-5 shrink-0" />
             <span>{label}</span>
@@ -56,7 +56,7 @@ export function WorkspaceModeTabs({ wideMode = false, showPromptGallery = false 
   // 窄屏 → 水平标签栏
   return (
     <TabsList
-      className={`scrollbar-hide flex h-16 w-full max-w-full touch-pan-x select-none justify-start gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-2xl bg-muted p-1 sm:grid ${gridCols} sm:overflow-visible sm:border sm:border-border sm:select-auto`}
+      className={`scrollbar-hide flex h-14 w-full max-w-full touch-pan-x select-none justify-start gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain border border-border bg-muted/65 p-1 sm:grid ${gridCols} sm:overflow-visible sm:select-auto`}
       onPointerDown={event => {
         const el = event.currentTarget;
         if (!el || (event.pointerType === 'mouse' && event.button !== 0) || el.scrollWidth <= el.clientWidth) return;

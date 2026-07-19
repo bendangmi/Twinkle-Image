@@ -32,13 +32,13 @@ export function BackupProgress({ percent, message, isActive }: BackupProgressPro
     return (
         <div className="space-y-4">
             {/* 警告横幅 */}
-            <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
-                <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-500 flex-shrink-0 mt-0.5" />
+            <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 p-4">
+                <AlertCircle className="mt-0.5 w-5 h-5 flex-shrink-0 text-warning" />
                 <div className="flex-1 text-sm">
-                    <p className="font-medium text-amber-900 dark:text-amber-100 mb-1">
+                    <p className="mb-1 font-medium text-foreground">
                         正在处理数据，请勿关闭页面
                     </p>
-                    <p className="text-amber-700 dark:text-amber-300">
+                    <p className="text-muted-foreground">
                         请保持此页面在前台运行，不要刷新或切换到其他标签页，否则可能导致数据丢失。
                     </p>
                 </div>

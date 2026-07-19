@@ -49,7 +49,7 @@ function parseGenerationText(text: string): ParsedSection[] {
       label: '分析',
       content: analysisMatch[1].trim(),
       icon: <Brain className="h-3.5 w-3.5" />,
-      color: 'text-blue-500',
+      color: 'text-processing',
     });
   }
   
@@ -60,7 +60,7 @@ function parseGenerationText(text: string): ParsedSection[] {
       label: '优化提示词',
       content: promptMatch[1].trim(),
       icon: <Sparkles className="h-3.5 w-3.5" />,
-      color: 'text-purple-500',
+      color: 'text-primary',
     });
   }
   
@@ -71,7 +71,7 @@ function parseGenerationText(text: string): ParsedSection[] {
       label: '结果',
       content: resultMatch[1].trim(),
       icon: <ImageIcon className="h-3.5 w-3.5" />,
-      color: 'text-green-500',
+      color: 'text-success',
     });
   }
   
@@ -81,7 +81,7 @@ function parseGenerationText(text: string): ParsedSection[] {
       label: '分析',
       content: text,
       icon: <Brain className="h-3.5 w-3.5" />,
-      color: 'text-blue-500',
+      color: 'text-processing',
     });
   }
   
@@ -195,13 +195,13 @@ export function AgentGenerationProgress({
       label: '分析',
       content: analysis || '根据你的描述，正在生成图片。',
       icon: <Brain className="h-3.5 w-3.5" />,
-      color: 'text-blue-500',
+      color: 'text-processing',
     },
     {
       label: '优化提示词',
       content: prompt,
       icon: <Sparkles className="h-3.5 w-3.5" />,
-      color: 'text-purple-500',
+      color: 'text-primary',
     },
   ];
 

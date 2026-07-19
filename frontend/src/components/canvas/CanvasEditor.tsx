@@ -1877,7 +1877,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
             : undefined,
           onAnnotationChangeColor: contextNode?.type === CanvasNodeType.TextAnnotation
             ? () => {
-                const colors = ["#fef3c7", "#dbeafe", "#fce7f3", "#d1fae5", "#fce4ec", "#ede9fe"];
+                const colors = ["#f4dfa0", "#cbddeb", "#edd1d8", "#d4dfc2", "#ebd4c6", "#dad5e8"];
                 const current = contextNode.metadata?.backgroundColor || "";
                 const next = colors[(colors.indexOf(current) + 1) % colors.length];
                 patchNode(contextNode.id, (n) => ({

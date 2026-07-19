@@ -24,17 +24,17 @@ export function Toast({
 
   const Icon = toast.type === 'success' ? CheckCircle : toast.type === 'info' ? Info : XCircle;
   const borderColor =
-    toast.type === 'success' ? 'border-green-500/30'
-      : toast.type === 'info' ? 'border-blue-500/30'
+    toast.type === 'success' ? 'border-success/35'
+      : toast.type === 'info' ? 'border-processing/35'
         : 'border-destructive/20';
   const textColor =
-    toast.type === 'success' ? 'text-green-600'
-      : toast.type === 'info' ? 'text-blue-600'
+    toast.type === 'success' ? 'text-success'
+      : toast.type === 'info' ? 'text-processing'
         : 'text-destructive';
 
   return createPortal(
     <div
-      className={`fixed bottom-4 right-4 z-[10000] flex items-center gap-2 max-w-sm rounded-xl border ${borderColor} bg-card px-4 py-3 text-sm ${textColor} shadow-lg`}
+      className={`fixed bottom-4 right-4 z-[10000] flex max-w-sm items-center gap-2 rounded-lg border ${borderColor} bg-card px-4 py-3 text-sm ${textColor} shadow-[0_10px_30px_color-mix(in_srgb,var(--foreground)_12%,transparent)]`}
     >
       <Icon className="w-4 h-4 flex-shrink-0" />
       <span className="flex-1">{toast.message}</span>

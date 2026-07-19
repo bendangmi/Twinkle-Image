@@ -31,6 +31,7 @@ backend/ccode-images/
 .arts/
 .claude/
 .vscode/
+.idea/
 .cursor/
 .codebuddy/
 .trae/
@@ -42,6 +43,7 @@ data/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.log
 
 # local env files
 .env
@@ -68,3 +70,15 @@ frontend/public/workbox-*.js
 
 # other
 infinite-canvas-main/
+.codex-merge-backup/
+.pnpm-store/
+**/.pnpm-store-local/
+**/pnpm-lock.yaml
+**/pnpm-workspace.yaml
+backend/node_modules.elevated-backup-*/
+/blacklist.json
+/prompts.json
+/local.yaml
+/scripts/generate-icons.js
+deploy/*.tar
+deploy/*.tar.sha256

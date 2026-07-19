@@ -312,10 +312,10 @@ export function AgentImageGallery({ images, onRedescribe }: AgentImageGalleryPro
                       <span className={cn(
                         'absolute right-1.5 top-1.5 rounded px-1 text-[9px] font-medium',
                         img.source === 'generated'
-                          ? 'bg-green-500/70 text-white'
+                          ? 'bg-success/85 text-success-foreground'
                           : img.source === 'asset'
-                            ? 'bg-violet-500/70 text-white'
-                            : 'bg-blue-500/70 text-white'
+                            ? 'bg-primary/85 text-primary-foreground'
+                            : 'bg-processing/85 text-processing-foreground'
                       )}>
                         {getAgentImageSourceBadge(img.source)}
                       </span>

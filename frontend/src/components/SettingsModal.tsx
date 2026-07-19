@@ -34,7 +34,9 @@ import {
   BUILTIN_IMAGE_PRESETS,
   BUILTIN_IMAGE_PRESET_OPTIONS,
   DEFAULT_DEFAULTS,
+  DEFAULT_GENERATION_SETTINGS,
   DEFAULT_TEXT_MODEL_TEMPLATES,
+  MAX_IMAGE_GENERATION_RETRIES,
   generateModelId,
   getDefaultTextModelTemplate,
   getCompleteImageModels,
@@ -43,6 +45,7 @@ import {
   loadRegistry,
   saveRegistry,
   type DefaultModels,
+  type GenerationSettings,
   type ImageModelConfig,
   type ProviderProtocol,
   type TextModelConfig,
@@ -140,6 +143,7 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
   const [imageModels, setImageModels] = useState<ImageModelConfig[]>([]);
   const [textModels, setTextModels] = useState<TextModelConfig[]>([]);
   const [defaults, setDefaults] = useState<DefaultModels>(DEFAULT_DEFAULTS);
+  const [generationSettings, setGenerationSettings] = useState<GenerationSettings>(DEFAULT_GENERATION_SETTINGS);
   const [selectedImageModelId, setSelectedImageModelId] = useState('');
   const [selectedTextModelId, setSelectedTextModelId] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -162,6 +166,7 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
     setImageModels(registry.imageModels.map(cloneImageModel));
     setTextModels(registry.textModels.map(cloneTextModel));
     setDefaults(normalizeDefaults(registry.defaults, registry.imageModels, registry.textModels));
+    setGenerationSettings(registry.generationSettings);
     setSelectedImageModelId(registry.imageModels[0]?.id || '');
     setSelectedTextModelId(registry.textModels[0]?.id || '');
     setError(null);
@@ -287,6 +292,7 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
       imageModels,
       textModels,
       defaults: normalizeDefaults(defaults, imageModels, textModels),
+      generationSettings,
     };
 
     saveRegistry(registry);
@@ -411,7 +417,7 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
             </div>
 
             {error && <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
-            {success && <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-400">{success}</div>}
+            {success && <div className="rounded-lg border border-success/25 bg-success/10 p-3 text-sm text-success">{success}</div>}
 
             <div className="rounded-xl border p-4 space-y-4">
               <div className="flex items-center justify-between gap-3">
@@ -678,11 +684,37 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
                         <div className="truncate font-medium">{getTextModelLabel(textModels, status.modelId) ?? getImageModelLabel(imageModels, status.modelId) ?? status.actualName ?? status.modelId}</div>
                         <div className="truncate text-xs text-muted-foreground">{status.message || status.actualName || status.modelId}</div>
                       </div>
-                      {status.available ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <XCircle className="w-4 h-4 text-destructive" />}
+                      {status.available ? <CheckCircle2 className="w-4 h-4 text-success" /> : <XCircle className="w-4 h-4 text-destructive" />}
                     </div>
                   ))}
                 </div>
               )}
+            </div>
+
+            <div className="rounded-xl border p-4 space-y-4">
+              <div>
+                <p className="font-medium">失败重试</p>
+                <p className="text-xs text-muted-foreground">单张图片首次生成失败后自动重试，成功后立即停止。重试会产生额外的 API 请求。</p>
+              </div>
+              <div className="max-w-xs space-y-2">
+                <label htmlFor="image-generation-max-retries" className="text-xs text-muted-foreground">最大重试次数</label>
+                <Input
+                  id="image-generation-max-retries"
+                  type="number"
+                  min={0}
+                  max={MAX_IMAGE_GENERATION_RETRIES}
+                  step={1}
+                  value={generationSettings.maxRetries}
+                  onChange={(event) => {
+                    const next = Number(event.target.value);
+                    if (!Number.isFinite(next)) return;
+                    setGenerationSettings({
+                      maxRetries: Math.min(MAX_IMAGE_GENERATION_RETRIES, Math.max(0, Math.floor(next))),
+                    });
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">默认 3 次；设为 0 可关闭自动重试。</p>
+              </div>
             </div>
           </TabsContent>
 
@@ -696,9 +728,9 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
               <BackupProgress percent={backupProgress.percent} message={backupProgress.message} isActive={isBackupActive} />
 
               {backupSuccess && !isBackupActive && (
-                <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-950/30">
-                  <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-emerald-600 dark:text-emerald-500 mt-0.5" />
-                  <p className="text-sm text-emerald-900 dark:text-emerald-100">{backupSuccess}</p>
+                <div className="flex items-start gap-3 rounded-lg border border-success/25 bg-success/10 p-4">
+                  <CheckCircle2 className="mt-0.5 w-5 h-5 flex-shrink-0 text-success" />
+                  <p className="text-sm text-success">{backupSuccess}</p>
                 </div>
               )}
 

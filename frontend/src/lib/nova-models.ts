@@ -61,10 +61,15 @@ export interface DefaultModels {
   imageDescribe: string;
 }
 
+export interface GenerationSettings {
+  maxRetries: number;
+}
+
 export interface NovaModelRegistry {
   imageModels: ImageModelConfig[];
   textModels: TextModelConfig[];
   defaults: DefaultModels;
+  generationSettings: GenerationSettings;
 }
 
 const REGISTRY_KEY = 'nova-model-registry';
@@ -204,6 +209,12 @@ export const DEFAULT_DEFAULTS: DefaultModels = {
   imageDescribe: '',
 };
 
+export const DEFAULT_GENERATION_SETTINGS: GenerationSettings = {
+  maxRetries: 3,
+};
+
+export const MAX_IMAGE_GENERATION_RETRIES = 10;
+
 function isProviderProtocol(value: unknown): value is ProviderProtocol {
   return value === 'google' || value === 'openai' || value === 'grok';
 }
@@ -321,6 +332,15 @@ function ensureDefaults(raw: Partial<DefaultModels> | undefined, imageModels: Im
   return next;
 }
 
+function ensureGenerationSettings(raw: Partial<GenerationSettings> | undefined): GenerationSettings {
+  const maxRetries = Number(raw?.maxRetries);
+  return {
+    maxRetries: Number.isInteger(maxRetries) && maxRetries >= 0 && maxRetries <= MAX_IMAGE_GENERATION_RETRIES
+      ? maxRetries
+      : DEFAULT_GENERATION_SETTINGS.maxRetries,
+  };
+}
+
 function createDefaultImageModel(): ImageModelConfig {
   const preset = BUILTIN_IMAGE_PRESETS['gpt-image-2'];
   return {
@@ -355,6 +375,7 @@ function getInitialRegistry(): NovaModelRegistry {
     imageModels: [createDefaultImageModel()],
     textModels: [createDefaultTextModel()],
     defaults: DEFAULT_DEFAULTS,
+    generationSettings: DEFAULT_GENERATION_SETTINGS,
   };
 }
 
@@ -374,7 +395,8 @@ export function loadRegistry(): NovaModelRegistry {
   const seededImageModels = imageModels.length > 0 ? imageModels : [createDefaultImageModel()];
   const seededTextModels = textModels.length > 0 ? textModels : [createDefaultTextModel()];
   const defaults = ensureDefaults(parsed.defaults, seededImageModels, seededTextModels);
-  return { imageModels: seededImageModels, textModels: seededTextModels, defaults };
+  const generationSettings = ensureGenerationSettings(parsed.generationSettings);
+  return { imageModels: seededImageModels, textModels: seededTextModels, defaults, generationSettings };
 }
 
 export function saveRegistry(registry: NovaModelRegistry): void {
@@ -386,6 +408,7 @@ export function saveRegistry(registry: NovaModelRegistry): void {
     imageModels,
     textModels,
     defaults: ensureDefaults(registry.defaults, imageModels, textModels),
+    generationSettings: ensureGenerationSettings(registry.generationSettings),
   };
 
   localStorage.setItem(REGISTRY_KEY, JSON.stringify(normalized));

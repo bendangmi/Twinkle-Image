@@ -1,4 +1,4 @@
-# Nova Image Studio
+# Twinkle Image
 
 <div align="center">
 
@@ -16,7 +16,7 @@
 
 ## 📖 简介
 
-Nova Image Studio（简称 Nova Image）是一个面向个人/团队的 AI 图像生成工作台。前端使用 Next.js 16 + React 19 静态导出（PWA），后端是轻量 Node.js 服务（`server.js` + SQLite + WebSocket），统一调度任务并代理图像生成 API。
+Twinkle Image 是一个面向个人/团队的 AI 图像生成工作台。前端使用 Next.js 16 + React 19 静态导出（PWA），后端是轻量 Node.js 服务（`server.js` + SQLite + WebSocket），统一调度任务并代理图像生成 API。
 
 **开源版特性：**
 - 支持分别配置图片模型与文本模型，模型级独立保存 API Key 与 Base URL
@@ -90,7 +90,7 @@ Nova Image Studio（简称 Nova Image）是一个面向个人/团队的 AI 图�
 
 ### 模型系统
 
-Nova Image 采用**用户自定义模型**架构：
+Twinkle Image 采用**用户自定义模型**架构：
 
 - **模型级配置**：每个图片模型和文本模型都独立保存协议、显示名称、模型 ID、API Key 与 Base URL
 - **图像模型**：用户自由添加、编辑、删除，支持设置协议、显示名称、模型 ID、最大参考图数量、最大分辨率
@@ -122,7 +122,7 @@ Nova Image 采用**用户自定义模型**架构：
 ## 📁 项目结构
 
 ```text
-nova-image-studio/
+twinkle-image/
 ├── frontend/                 # Next.js 前端（React 19 + TS）
 │   ├── src/
 │   │   ├── app/              # 根页面 layout.tsx / page.tsx
@@ -282,8 +282,11 @@ npm run go
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/tianjiangqiji/nova-image-studio.git
-cd nova-image-studio
+git clone https://github.com/bendangmi/Twinkle-Image.git
+cd Twinkle-Image
+
+# 保留官方仓库，后续可同步上游更新
+git remote add upstream https://github.com/tianjiangqiji/nova-image-studio.git
 
 # 2. 安装依赖（自动安装根、frontend、backend）
 npm install
@@ -321,16 +324,14 @@ npm run go             # 打包：build + 汇总到根 out.zip
 ### 构建镜像
 
 ```bash
-docker build -t nova-image-studio:latest .
+docker build --build-arg APP_VERSION=3.1.3 -t twinkle-image:3.1.3 .
 ```
 
-### 推送到仓库
+### 离线镜像与 Compose 部署
 
-```bash
-docker tag nova-image-studio:latest tianjiangqiji/nova-image-studio:latest
-
-docker push tianjiangqiji/nova-image-studio:latest
-```
+完整步骤见 [`deploy/DEPLOY.md`](deploy/DEPLOY.md)。本地执行
+`deploy/build-image.ps1` 会生成带版本号的
+`deploy/twinkle-image-3.1.3.tar`，可上传服务器后通过 `docker load` 导入。
 
 </details>
 
@@ -446,9 +447,9 @@ NOVA_ACCEPT_NEW_TASKS=false
 
 <a href="https://www.star-history.com/?repos=tianjiangqiji%2Fnova-image-studio&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=tianjiangqiji/nova-image-studio&type=date&theme=dark&legend=top-left&sealed_token=clnQ7NRTys9PWagU6Le0AOcbLj0kNHUcrCk0dTvejD53SO6ybvgm9oM-vA_2nqtuAEZ8jAYMNbt_4MDg47CQ44bSyP0KLltIWPudfIDvMx_eJVk32XxnDw" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=tianjiangqiji/nova-image-studio&type=date&legend=top-left&sealed_token=clnQ7NRTys9PWagU6Le0AOcbLj0kNHUcrCk0dTvejD53SO6ybvgm9oM-vA_2nqtuAEZ8jAYMNbt_4MDg47CQ44bSyP0KLltIWPudfIDvMx_eJVk32XxnDw" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=tianjiangqiji/nova-image-studio&type=date&legend=top-left&sealed_token=clnQ7NRTys9PWagU6Le0AOcbLj0kNHUcrCk0dTvejD53SO6ybvgm9oM-vA_2nqtuAEZ8jAYMNbt_4MDg47CQ44bSyP0KLltIWPudfIDvMx_eJVk32XxnDw" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=tianjiangqiji/nova-image-studio&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=tianjiangqiji/nova-image-studio&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=tianjiangqiji/nova-image-studio&type=date&legend=top-left" />
  </picture>
 </a>
 
@@ -471,6 +472,6 @@ NOVA_ACCEPT_NEW_TASKS=false
 
 <div align="center">
 
-**[⬆ 回到顶部](#nova-image-studio)**
+**[⬆ 回到顶部](#twinkle-image)**
 
 </div>

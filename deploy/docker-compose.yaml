@@ -1,0 +1,32 @@
+services:
+  twinkle-image:
+    image: twinkle-image:3.1.3
+    container_name: twinkle-image
+    ports:
+      - "${TWINKLE_PORT:-3002}:3000"
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+      NOVA_TASK_DB: /app/backend/data/nova-tasks.sqlite
+      NOVA_IMAGE_DIR: /app/backend/data/nova-images
+      NOVA_TASK_CONCURRENCY: ${NOVA_TASK_CONCURRENCY:-10}
+      NOVA_MAX_QUEUE_SIZE: ${NOVA_MAX_QUEUE_SIZE:-200}
+      NOVA_RATE_LIMIT_MAX_REQUESTS_PER_IP: ${NOVA_RATE_LIMIT_MAX_REQUESTS_PER_IP:-20}
+      NOVA_RATE_LIMIT_MAX_REQUESTS_PER_API_KEY: ${NOVA_RATE_LIMIT_MAX_REQUESTS_PER_API_KEY:-20}
+      PROMPT_GALLERY_MODE: ${PROMPT_GALLERY_MODE:-2}
+      PROMPT_GALLERY_PASSWORD: ${PROMPT_GALLERY_PASSWORD:?Set PROMPT_GALLERY_PASSWORD in .env}
+    volumes:
+      - twinkle-image-data:/app/backend/data
+      - ./config/blacklist.json:/app/backend/blacklist.json:ro
+      - ./config/prompts.json:/app/backend/prompts.json:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/nova/queue-status').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  twinkle-image-data:

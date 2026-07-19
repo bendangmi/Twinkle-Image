@@ -657,7 +657,7 @@ export function ImageGenerationWorkbench({
 
   return (
     <div ref={formRef} className="space-y-4">
-      <div className="bg-muted/50 border border-border rounded-xl shadow-md">
+      <div className="anthropic-surface overflow-hidden bg-card">
         {disabled ? (
           <div className="flex min-h-40 flex-col items-center justify-center gap-4 px-4 py-8 text-center">
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -717,7 +717,7 @@ export function ImageGenerationWorkbench({
                   onClick={() => setAssetPickerOpen(true)}
                   disabled={loading || !refsSupported || pendingFiles.length >= maxImages}
                   title={refsSupported ? '从素材库导入参考图' : '当前模型不支持参考图'}
-                  className="flex flex-1 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 px-3 py-4 text-center transition-all hover:border-primary/50 hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex flex-1 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-md border border-dashed border-primary/45 bg-primary/5 px-3 py-4 text-center transition-colors hover:border-primary hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <ImagePlus className="h-6 w-6 text-muted-foreground" />
                   <span className="text-sm font-medium">素材库</span>

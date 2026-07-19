@@ -282,12 +282,12 @@ export function AgentProposalCard({
   };
 
   return (
-    <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 shadow-sm">
+    <div className="rounded-lg border border-primary/35 bg-primary/5 p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className={cn(
             'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium',
-            effectiveMode === 'edit' ? 'bg-amber-500/15 text-amber-600' : 'bg-primary/15 text-primary'
+            effectiveMode === 'edit' ? 'bg-warning/15 text-warning' : 'bg-primary/15 text-primary'
           )}>
             {effectiveMode === 'edit' ? <Pencil className="h-3 w-3" /> : <Wand2 className="h-3 w-3" />}
             {effectiveMode === 'edit' ? '编辑图片' : '生成新图'}

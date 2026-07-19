@@ -61,7 +61,7 @@ export function CanvasWorkspace({ wideMode, onConfigureApiKey, onEnableWideMode,
   // 画布仅在宽屏模式下可用（按宽度模式判断，非检测设备），以降低适配成本。
   if (!wideMode) {
     return (
-      <div className="grid place-items-center rounded-2xl border border-dashed border-border py-20">
+      <div className="grid place-items-center rounded-lg border border-dashed border-border bg-card/45 py-20">
         <div className="flex max-w-sm flex-col items-center gap-3 px-6 text-center">
           <Frame className="size-10 text-muted-foreground" />
           <h2 className="text-base font-semibold">无限画布需要宽屏模式</h2>
@@ -77,7 +77,7 @@ export function CanvasWorkspace({ wideMode, onConfigureApiKey, onEnableWideMode,
 
   if (activeProjectId) {
     return (
-      <div className="relative h-full min-h-[70vh] w-full overflow-hidden rounded-2xl border border-border bg-card">
+      <div className="relative h-full min-h-[70vh] w-full overflow-hidden rounded-lg border border-border bg-card">
         <CanvasEditor projectId={activeProjectId} onBack={() => setActiveProjectId(null)} onRequireApiKey={onConfigureApiKey} showToast={showToast} showPromptGallery={showPromptGallery} />
       </div>
     );
@@ -117,12 +117,12 @@ export function CanvasWorkspace({ wideMode, onConfigureApiKey, onEnableWideMode,
       </div>
 
       {!mounted || !hydrated ? (
-        <div className="grid place-items-center rounded-2xl border border-dashed border-border py-16 text-sm text-muted-foreground">加载中…</div>
+        <div className="grid place-items-center rounded-lg border border-dashed border-border py-16 text-sm text-muted-foreground">加载中…</div>
       ) : projects.length === 0 ? (
         <button
           type="button"
           onClick={() => setActiveProjectId(createProject())}
-          className="flex w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border py-16 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+          className="flex w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-card/45 py-16 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
         >
           <Layers className="size-8" />
           还没有画布，点击新建第一个
@@ -130,7 +130,7 @@ export function CanvasWorkspace({ wideMode, onConfigureApiKey, onEnableWideMode,
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {sortedProjects.map((project) => (
-            <div key={project.id} className={cn("group flex flex-col gap-2 rounded-2xl border border-border bg-card p-3 shadow-sm transition-colors hover:border-primary/40")}>
+            <div key={project.id} className={cn("group flex flex-col gap-2 rounded-lg border border-border bg-card p-3 transition-colors hover:border-primary/50")}>
               <button type="button" className="block w-full" aria-label="打开画布" onClick={() => setActiveProjectId(project.id)}>
                 <CanvasThumbnail nodes={project.nodes} />
               </button>

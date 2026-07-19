@@ -132,18 +132,15 @@ export const WorkspaceHeader = forwardRef<WorkspaceHeaderRef, WorkspaceHeaderPro
           <button
             type="button"
             onClick={onLogoClick}
-            className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:rounded-xl"
-            aria-label="Image logo"
+            className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            aria-label="Twinkle Image logo"
           >
-            <img
-              src="/favicon.png"
-              alt="Image logo"
-              className="h-8 w-8 flex-shrink-0 rounded-lg object-cover ring-1 ring-border/60 sm:h-11 sm:w-11 sm:rounded-xl"
-            />
+            <img src="/brand-mark-64.png?v=9" alt="Twinkle Image" className="brand-mark h-8 w-8 sm:h-11 sm:w-11" />
           </button>
-          <div className="hidden min-w-0 space-y-1 sm:block">
-            <h1 className="truncate text-2xl font-semibold tracking-tight">Image</h1>
-            <p className="text-sm text-muted-foreground">批量 API 图像生成器</p>
+          <div className="hidden min-w-0 sm:block">
+            <span className="workspace-kicker">Visual intelligence</span>
+            <h1 className="truncate text-xl font-semibold leading-tight">Twinkle Image</h1>
+            <p className="mt-0.5 text-xs text-muted-foreground">AI 图像创作工作台</p>
           </div>
         </div>
 

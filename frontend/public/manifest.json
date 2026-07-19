@@ -1,13 +1,13 @@
 {
     "id": "/",
-    "name": "Image - AI 图像生成器",
-    "short_name": "Image",
-    "description": "Image AI 图像生成器",
+    "name": "Twinkle Image - AI 视觉工作台",
+    "short_name": "Twinkle Image",
+    "description": "AI 图像创作、素材管理与智能工作流",
     "start_url": "/",
     "display": "standalone",
     "display_override": ["window-controls-overlay", "standalone"],
-    "background_color": "#f5f5fa",
-    "theme_color": "#1a1a2e",
+    "background_color": "#faf9f5",
+    "theme_color": "#faf9f5",
     "orientation": "any",
     "categories": ["utilities", "productivity", "photo"],
     "icons": [
@@ -36,14 +36,14 @@
             "sizes": "1280x720",
             "type": "image/png",
             "form_factor": "wide",
-            "label": "Image 应用主界面"
+            "label": "Twinkle Image 桌面工作台"
         },
         {
             "src": "/screenshot-narrow.png",
             "sizes": "720x1280",
             "type": "image/png",
             "form_factor": "narrow",
-            "label": "Image 移动端界面"
+            "label": "Twinkle Image 移动工作台"
         }
     ],
     "edge_side_panel": {

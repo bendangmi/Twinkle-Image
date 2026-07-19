@@ -5,6 +5,11 @@ const path = require('path');
 const next = process.env.NODE_ENV !== 'production' ? require('next') : null;
 const Database = require('better-sqlite3');
 const { WebSocketServer } = require('ws');
+const {
+  DEFAULT_IMAGE_MAX_RETRIES,
+  isValidImageMaxRetries,
+  runImageGenerationWithRetries,
+} = require('./image-retry');
 
 const ENV_FILE_PATH = path.join(process.cwd(), '.env');
 const TASK_STATUS = {
@@ -108,7 +113,6 @@ const DB_PATH = process.env.NOVA_TASK_DB || path.join(__dirname, 'nova-tasks.sql
 const TASK_TTL_MS = 12 * 60 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
-const IMAGE_STREAM_UNSUPPORTED_PATTERN = /(?:stream.*(?:unsupported|not supported|unknown|unrecognized|invalid)|(?:unsupported|not supported|unknown|unrecognized|invalid).*stream|stream.*(?:不支持|未知|无效)|(?:不支持|未知|无效).*stream)/i;
 // 开源版：不再硬编码模型列表，由前端通过 protocol 字段指定协议类型
 const VALID_PROTOCOLS = new Set(['google', 'openai', 'grok']);
 const GPT_IMAGE_QUALITIES = new Set(['auto', 'high', 'medium', 'low']);
@@ -636,6 +640,8 @@ function validateCreatePayload(body) {
   if (typeof body.prompt !== 'string' || body.prompt.trim().length === 0) throw new Error('提示词不能为空');
   if (typeof body.model !== 'string' || body.model.trim().length === 0) throw new Error('模型名称不能为空');
   if (!Number.isInteger(body.parallelCount) || body.parallelCount < 1 || body.parallelCount > 4) throw new Error('并发数量无效');
+  if (body.maxRetries === undefined) body.maxRetries = DEFAULT_IMAGE_MAX_RETRIES;
+  if (!isValidImageMaxRetries(body.maxRetries)) throw new Error('最大重试次数无效');
 
   if (!Array.isArray(body.images)) body.images = [];
   body.baseUrl = normalizeProtocolBaseUrl(body.protocol, body.baseUrl);
@@ -669,6 +675,7 @@ function createTask(body, req) {
     gptImageStyle: body.gptImageStyle,
     gptImageBackground: body.gptImageBackground,
     parallelCount: body.parallelCount,
+    maxRetries: body.maxRetries,
     images: body.images.map(img => ({ mimeType: img.mimeType })),
   };
   const tx = db.transaction(() => {
@@ -1028,11 +1035,6 @@ async function parseGptImageResponse(response) {
   return extractImagePayload(data);
 }
 
-function isImageStreamUnsupportedError(error) {
-  const message = error instanceof Error ? error.message : String(error);
-  return IMAGE_STREAM_UNSUPPORTED_PATTERN.test(message);
-}
-
 async function requestGptImage(apiKey, request, resolvedSize, options = {}) {
   const baseUrl = options.baseUrl || resolveNovaApiBaseUrl();
   const endpoint = request.mode === 'image-to-image'
@@ -1247,7 +1249,10 @@ function drainQueue() {
 
 async function generateSingleImage(apiKey, request, taskId, index) {
   try {
-    const image = await generateNovaImage(apiKey, request);
+    const image = await runImageGenerationWithRetries(
+      () => generateNovaImage(apiKey, request),
+      { maxRetries: request.maxRetries },
+    );
     const expanded = image.startsWith('MULTI_URL:') ? image.substring(10).split('|||').map(url => `URL:${url}`) : [image];
     const diskRefs = [];
     for (let subIdx = 0; subIdx < expanded.length; subIdx++) {

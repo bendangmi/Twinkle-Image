@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Twinkle Image">
+  <defs>
+    <linearGradient id="silver" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.3" stop-color="#aeb4bf"/>
+      <stop offset="0.55" stop-color="#f7f8fa"/>
+      <stop offset="0.8" stop-color="#737b89"/>
+      <stop offset="1" stop-color="#d9dde4"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff6a8"/>
+      <stop offset="0.35" stop-color="#f1cf68"/>
+      <stop offset="0.72" stop-color="#a97a2f"/>
+      <stop offset="1" stop-color="#e9bc52"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="8" fill="#131a2a"/>
+  <path fill="#080c16" d="M7 13h32l-2 10H27v29H17V23H7z"/>
+  <path fill="url(#silver)" stroke="#5f6672" stroke-width="1" d="M9 15h28l-1.3 6.5H25v28h-6.5v-28H9z"/>
+  <path fill="#080c16" d="M41 13h17v10h-4v18h4v11H40V41h4V23h-3z"/>
+  <path fill="url(#gold)" stroke="#6f4f20" stroke-width="1" d="M43 15h13v6.5h-4V43h4v6.5H42V43h4V21.5h-3z"/>
+</svg>

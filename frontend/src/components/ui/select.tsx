@@ -44,7 +44,7 @@ function Select<T extends string>({
       <SelectPrimitive.Trigger
         data-slot="select-trigger"
         className={cn(
-          "inline-flex w-full items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 text-sm transition-colors outline-none select-none hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[popup-open]:bg-muted/50 dark:bg-input/30",
+          "inline-flex w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-2.5 text-sm transition-colors outline-none select-none hover:bg-muted/60 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25 disabled:pointer-events-none disabled:opacity-50 data-[popup-open]:bg-muted",
           size === "sm" ? "h-7" : "h-8",
           className
         )}
@@ -62,7 +62,7 @@ function Select<T extends string>({
         >
           <SelectPrimitive.Popup
             className={cn(
-              "max-h-[min(24rem,var(--available-height))] min-w-[var(--anchor-width)] overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md outline-none",
+              "max-h-[min(24rem,var(--available-height))] min-w-[var(--anchor-width)] overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-[0_10px_30px_color-mix(in_srgb,var(--foreground)_12%,transparent)] outline-none",
               contentClassName
             )}
           >

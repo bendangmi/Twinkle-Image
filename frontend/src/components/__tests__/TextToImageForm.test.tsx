@@ -2,9 +2,47 @@ import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { TextToImageForm } from '../TextToImageForm'
 
+function seedConfiguredImageModels() {
+  localStorage.setItem('nova-model-registry', JSON.stringify({
+    imageModels: [
+      {
+        id: 'gemini-3-pro-image-preview',
+        protocol: 'google',
+        name: 'Banana Pro',
+        modelId: 'gemini-3-pro-image-preview',
+        apiKey: 'test-key',
+        baseUrl: 'https://generativelanguage.googleapis.com',
+        builtinPreset: 'gemini-3-pro-image-preview',
+        maxRefImages: 14,
+        maxOutputSize: '4K',
+        supportsAdvancedParams: false,
+      },
+      {
+        id: 'gpt-image-2',
+        protocol: 'openai',
+        name: 'GPT Image 2',
+        modelId: 'gpt-image-2',
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com',
+        builtinPreset: 'gpt-image-2',
+        maxRefImages: 16,
+        maxOutputSize: '4K',
+        supportsAdvancedParams: true,
+      },
+    ],
+    textModels: [],
+    defaults: {
+      textToImage: 'gemini-3-pro-image-preview',
+      imageToImage: 'gemini-3-pro-image-preview',
+    },
+    generationSettings: { maxRetries: 3 },
+  }))
+}
+
 describe('TextToImageForm', () => {
   beforeEach(() => {
     localStorage.clear()
+    seedConfiguredImageModels()
   })
 
   it('renders the form with placeholder text', () => {
