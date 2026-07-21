@@ -363,14 +363,14 @@ npm run go             # 打包：build + 汇总到根 out.zip
 ### 构建镜像
 
 ```bash
-docker build --build-arg APP_VERSION=3.1.3 -t twinkle-image:3.1.3 .
+docker build --build-arg APP_VERSION=3.1.4 -t twinkle-image:3.1.4 .
 ```
 
 ### 离线镜像与 Compose 部署
 
 完整步骤见 [`deploy/DEPLOY.md`](deploy/DEPLOY.md)。本地执行
 `deploy/build-image.ps1` 会生成带版本号的
-`deploy/twinkle-image-3.1.3.tar`，可上传服务器后通过 `docker load` 导入。
+`deploy/twinkle-image-3.1.4.tar`，可上传服务器后通过 `docker load` 导入。
 
 </details>
 
