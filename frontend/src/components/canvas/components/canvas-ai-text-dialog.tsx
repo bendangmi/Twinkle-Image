@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { isImeComposing } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
 
 interface AiTextGenerateDialogProps {
@@ -82,7 +83,7 @@ export function AiTextGenerateDialog({
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && e.ctrlKey) {
+                  if (e.key === 'Enter' && e.ctrlKey && !isImeComposing(e)) {
                     e.preventDefault();
                     handleGenerate();
                   }

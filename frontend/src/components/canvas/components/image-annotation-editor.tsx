@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { isImeComposing } from '@/lib/keyboard';
 import { ConfirmDialog } from '@/components/workspace/dialogs/ConfirmDialog';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -216,7 +217,7 @@ function ColorPicker({
             key={value}
             defaultValue={value}
             onBlur={e => commitHex(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') commitHex((e.target as HTMLInputElement).value); }}
+            onKeyDown={e => { if (e.key === 'Enter' && !isImeComposing(e)) commitHex((e.target as HTMLInputElement).value); }}
             className="h-7 w-full rounded-md border border-border bg-background px-2 text-xs uppercase tabular-nums outline-none focus-visible:ring-1 focus-visible:ring-primary"
             spellCheck={false}
           />
@@ -806,7 +807,7 @@ export function ImageAnnotationEditor({ src, title, onClose, onSubmit }: ImageAn
               rows={2}
               className="resize-none"
               onKeyDown={e => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !isImeComposing(e)) {
                   e.preventDefault();
                   if (canSubmit) void handleSubmit();
                 }

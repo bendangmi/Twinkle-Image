@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ConfirmDialog } from '@/components/workspace/dialogs/ConfirmDialog';
 import type { PromptGalleryMode } from '@/hooks/usePromptGalleryConfig';
+import { isImeComposing } from '@/lib/keyboard';
 
 export function usePromptGalleryAccess(
   mode: PromptGalleryMode,
@@ -108,7 +109,7 @@ export function PromptGalleryAccessDialog({
             value={passwordInput}
             onChange={(event) => onPasswordChange(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') onSubmit();
+              if (event.key === 'Enter' && !isImeComposing(event)) onSubmit();
             }}
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none"
             autoFocus

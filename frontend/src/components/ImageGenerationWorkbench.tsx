@@ -39,6 +39,7 @@ import {
 import { prepareUploadImage, getOptimizationBadge } from '@/lib/upload-image-cache';
 import { MAX_UPLOAD_SIZE_BYTES } from '@/lib/constants';
 import { dispatchImageActionToast } from '@/lib/image-actions';
+import { isImeComposing } from '@/lib/keyboard';
 import type { AspectRatio, OutputSize, RefImageData } from '@/lib/job-store';
 import type { ImageFormSettings } from '@/lib/form-settings';
 import type { ImageToImageSubmitInput, TextToImageSubmitInput } from '@/lib/workspace-task-service';
@@ -646,7 +647,7 @@ export function ImageGenerationWorkbench({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && e.shiftKey) {
+    if (e.key === 'Enter' && e.shiftKey && !isImeComposing(e)) {
       e.preventDefault();
       handleSubmit();
     }

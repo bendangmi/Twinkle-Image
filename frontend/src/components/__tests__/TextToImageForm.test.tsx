@@ -92,6 +92,17 @@ describe('TextToImageForm', () => {
     }))
   })
 
+  it('does not submit when Shift+Enter belongs to an IME composition', () => {
+    const onSubmit = vi.fn()
+    render(<TextToImageForm onSubmit={onSubmit} />)
+
+    const textarea = screen.getByPlaceholderText('描述你想要生成的图像...')
+    fireEvent.change(textarea, { target: { value: 'tabbar' } })
+    fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: true, isComposing: true })
+
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
   it('shows image params control for GPT Image 2 model', async () => {
     const onSubmit = vi.fn()
     render(<TextToImageForm onSubmit={onSubmit} initialData={{ model: 'gpt-image-2' }} />)

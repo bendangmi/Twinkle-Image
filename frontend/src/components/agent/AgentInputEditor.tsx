@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, forwardRef } from 'react';
 import { cn } from '@/lib/utils';
+import { isImeComposing } from '@/lib/keyboard';
 import type { AgentImageRecord } from '@/lib/agent-chat-config';
 
 export interface AgentInputEditorHandle {
@@ -171,6 +172,8 @@ export const AgentInputEditor = forwardRef<AgentInputEditorHandle, AgentInputEdi
 
     // 键盘事件
     const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (isImeComposing(e)) return;
+
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         if (!editorRef.current) return;

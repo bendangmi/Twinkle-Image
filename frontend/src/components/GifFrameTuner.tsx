@@ -24,6 +24,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ConfirmDialog } from '@/components/workspace/dialogs/ConfirmDialog';
+import { isImeComposing } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
 import type { GridCell } from '@/lib/gif-encoder';
 
@@ -636,7 +637,7 @@ export function GifFrameTuner({ cells, cellWidth, cellHeight, onGenerate, onClos
                   if (!isNaN(v)) updateActive({ rotation: clampRotation(v) });
                   else updateActive({ rotation: 0 });
                 }}
-                onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                onKeyDown={e => { if (e.key === 'Enter' && !isImeComposing(e)) (e.target as HTMLInputElement).blur(); }}
                 className="h-6 w-14 rounded-md border border-border bg-background px-1.5 text-center text-xs tabular-nums text-foreground outline-none focus-visible:ring-1 focus-visible:ring-primary"
                 title="旋转角度（精确到0.01°，可手动输入）"
               />
@@ -842,7 +843,7 @@ function ColorPicker({
             key={value}
             defaultValue={value}
             onBlur={e => commitHex(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') commitHex((e.target as HTMLInputElement).value); }}
+            onKeyDown={e => { if (e.key === 'Enter' && !isImeComposing(e)) commitHex((e.target as HTMLInputElement).value); }}
             className="h-7 w-full rounded-md border border-border bg-background px-2 text-xs uppercase tabular-nums outline-none focus-visible:ring-1 focus-visible:ring-primary"
             spellCheck={false}
           />

@@ -15,6 +15,7 @@ import { GenerationParamsBar, type GenerationParamsValue } from '@/components/Ge
 import { ConfirmDialog } from '@/components/workspace/dialogs/ConfirmDialog';
 import { addTextAsset, type TextAsset } from '@/lib/asset-store';
 import { dispatchImageActionToast } from '@/lib/image-actions';
+import { isImeComposing } from '@/lib/keyboard';
 import { streamPromptOptimize, type StreamPromptOptimizeHandle } from '@/lib/prompt-optimize-client';
 import { loadJsonFromStorage, saveJsonToStorage } from '@/lib/settings-storage';
 import { requireDefaultConfiguredTextModel } from '@/lib/model-endpoints';
@@ -321,7 +322,7 @@ export function TextToImageForm({ onSubmit, disabled = false, onDraftConsumed, o
   }, [prompt]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && e.shiftKey) {
+    if (e.key === 'Enter' && e.shiftKey && !isImeComposing(e)) {
       e.preventDefault();
       handleSubmit();
     }

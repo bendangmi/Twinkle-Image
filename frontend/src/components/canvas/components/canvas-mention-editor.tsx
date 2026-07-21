@@ -5,6 +5,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { FileText, Image as ImageIcon } from "lucide-react";
 
+import { isImeComposing } from "@/lib/keyboard";
 import { cn } from "@/lib/utils";
 import type { CanvasResourceReference } from "../utils/canvas-resource-references";
 
@@ -252,6 +253,8 @@ export function CanvasMentionEditor({ value, references, onChange, onSubmit, pla
 
   const handleKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (isImeComposing(event)) return;
+
       if (mention && candidates.length) {
         if (event.key === "ArrowDown") {
           event.preventDefault();
