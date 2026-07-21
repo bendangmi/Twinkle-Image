@@ -11,8 +11,8 @@ services:
       NOVA_TASK_DB: /app/backend/data/nova-tasks.sqlite
       NOVA_IMAGE_DIR: /app/backend/data/nova-images
     volumes:
-      - twinkle-image-data:/app/backend/data
+      - ./data:/app/backend/data
+      - ./blacklist.json:/app/backend/blacklist.json
+      - ./prompts.json:/app/backend/prompts.json
+      - ./.env:/app/.env
     restart: unless-stopped
-
-volumes:
-  twinkle-image-data:
