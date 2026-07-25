@@ -120,6 +120,7 @@ export function ImageGenerationWorkbench({
   const [model, setModel] = useState<ModelId>(() => getDefaultModelId());
   const [outputSize, setOutputSize] = useState<OutputSize>('1K');
   const [customSize, setCustomSize] = useState<string | undefined>(undefined);
+  const customSizeRef = useRef<string | undefined>(undefined);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('1:1');
   const [temperature, setTemperature] = useState<number>(1);
   const [gptImageAdvancedParams, setGptImageAdvancedParams] = useState<GptImageAdvancedParams>(DEFAULT_GPT_IMAGE_ADVANCED_PARAMS);
@@ -163,7 +164,10 @@ export function ImageGenerationWorkbench({
       }
     }
     if (patch.outputSize !== undefined) setOutputSize(patch.outputSize);
-    if ('customSize' in patch) setCustomSize(patch.customSize);
+    if ('customSize' in patch) {
+      customSizeRef.current = patch.customSize;
+      setCustomSize(patch.customSize);
+    }
     if (patch.aspectRatio !== undefined) setAspectRatio(patch.aspectRatio);
     if (patch.temperature !== undefined) setTemperature(patch.temperature);
     if (patch.parallelCount !== undefined) setParallelCount(patch.parallelCount);
@@ -186,6 +190,7 @@ export function ImageGenerationWorkbench({
 
     setModel(nextModel);
     setOutputSize(nextOutputSize);
+    customSizeRef.current = nextCustomSize;
     setCustomSize(nextCustomSize);
     setAspectRatio(nextAspectRatio);
     setGptImageAdvancedParams(prev => getGptImageAdvancedParamsForModel(nextModel, prev));
@@ -248,7 +253,8 @@ export function ImageGenerationWorkbench({
 
       setModel(nextModel);
       setOutputSize(nextOutputSize);
-      setCustomSize(nextCustomSize);
+       customSizeRef.current = nextCustomSize;
+       setCustomSize(nextCustomSize);
       setAspectRatio(nextAspectRatio);
       setTemperature(nextTemperature);
       setGptImageAdvancedParams(nextAdvancedParams);
@@ -609,7 +615,7 @@ export function ImageGenerationWorkbench({
         prompt: prompt.trim(),
         files: pendingFiles,
         outputSize,
-        customSize,
+        customSize: customSizeRef.current ?? customSize,
         aspectRatio,
         temperature,
         model: modelWithBilling,
@@ -622,7 +628,7 @@ export function ImageGenerationWorkbench({
       onSubmitText({
         prompts: [prompt.trim()],
         outputSize,
-        customSize,
+        customSize: customSizeRef.current ?? customSize,
         aspectRatio,
         temperature,
         model: modelWithBilling,

@@ -227,9 +227,9 @@ export function normalizeCustomImageSize(size?: string, maxSide?: number): strin
   if (!parsed) return undefined;
 
   const limit = typeof maxSide === 'number' && maxSide > 0 ? maxSide : Number.POSITIVE_INFINITY;
-  const width = Math.min(roundToMultiple(parsed.width, CUSTOM_IMAGE_SIZE_LIMITS.multiple), limit);
-  const height = Math.min(roundToMultiple(parsed.height, CUSTOM_IMAGE_SIZE_LIMITS.multiple), limit);
-  if (!isImageSizeWithinLimits(width, height, maxSide)) return undefined;
+  const width = parsed.width;
+  const height = parsed.height;
+  if (width < 1 || height < 1 || width > limit || height > limit) return undefined;
 
   return `${width}x${height}`;
 }

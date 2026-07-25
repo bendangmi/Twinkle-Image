@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const next = process.env.NODE_ENV !== 'production' ? require('next') : null;
 const Database = require('better-sqlite3');
+const sharp = require('sharp');
 const { WebSocketServer } = require('ws');
 const {
   DEFAULT_IMAGE_MAX_RETRIES,
@@ -783,9 +784,9 @@ function normalizeCustomImageSize(size, maxSide) {
   if (!parsed) return undefined;
 
   const limit = typeof maxSide === 'number' && maxSide > 0 ? maxSide : Number.POSITIVE_INFINITY;
-  const width = Math.min(roundToMultiple(parsed.width, CUSTOM_IMAGE_SIZE_LIMITS.multiple), limit);
-  const height = Math.min(roundToMultiple(parsed.height, CUSTOM_IMAGE_SIZE_LIMITS.multiple), limit);
-  if (!isImageSizeWithinLimits(width, height, maxSide)) return undefined;
+  const width = parsed.width;
+  const height = parsed.height;
+  if (width < 1 || height < 1 || width > limit || height > limit) return undefined;
 
   return `${width}x${height}`;
 }
@@ -800,12 +801,19 @@ function resolveGptImageRequestSize(request) {
   return getSupportedGptImageSize(request.model, request.outputSize, request.aspectRatio);
 }
 
+function getPromptWithCustomSize(request) {
+  const customSize = normalizeCustomImageSize(request.customSize, 4096);
+  if (!customSize) return request.prompt;
+  const [width, height] = customSize.split('x');
+  return `${request.prompt}\n\n严格输出尺寸要求：生成图片必须为 ${width}px × ${height}px，禁止改为其他尺寸或比例。`;
+}
+
 function getGptImageRequestAdvancedParams(request) {
   return normalizeGptImageAdvancedParams(request);
 }
 
 function createGptImageRequestInit(apiKey, request, resolvedSize, options = {}) {
-  const prompt = request.prompt;
+  const prompt = getPromptWithCustomSize(request);
   const advancedParams = getGptImageRequestAdvancedParams(request);
   const stream = Boolean(options.stream);
 
@@ -1074,7 +1082,7 @@ function toGrokImageDataUrl(img) {
 }
 
 function createGrokImageRequestInit(apiKey, request, options = {}) {
-  const prompt = request.prompt;
+  const prompt = getPromptWithCustomSize(request);
   const stream = Boolean(options.stream);
   const aspectRatio = getGrokAspectRatio(request.aspectRatio);
   const resolution = getGrokResolution(request.outputSize);
@@ -1192,7 +1200,7 @@ function extractGeminiImagePayload(data) {
 async function generateNovaGeminiImage(apiKey, request, options = {}) {
   const baseUrl = options.baseUrl || resolveNovaApiBaseUrl();
   const parts = [
-    { text: request.prompt },
+    { text: getPromptWithCustomSize(request) },
     ...request.images.map(img => ({ inlineData: { data: img.data, mimeType: img.mimeType } })),
   ];
   const response = await fetchWithTimeout(`${baseUrl}/v1beta/models/${encodeURIComponent(request.model)}:generateContent`, {
@@ -1267,9 +1275,20 @@ async function generateSingleImage(apiKey, request, taskId, index) {
       if (img.startsWith('URL:')) {
         const remoteUrl = img.substring(4);
         const result = await downloadUrlToDisk(taskId, index, subIdx, remoteUrl);
+        const customSize = normalizeCustomImageSize(request.customSize, 4096);
+        if (customSize) {
+          const [width, height] = customSize.split('x').map(Number);
+          await sharp(result.filePath).resize(width, height, { fit: 'fill' }).png().toFile(`${result.filePath}.resized`);
+          fs.renameSync(`${result.filePath}.resized`, result.filePath);
+        }
         diskRefs.push(`URL:${result.httpUrl}`);
       } else {
-        const buffer = Buffer.from(img, 'base64');
+        let buffer = Buffer.from(img, 'base64');
+        const customSize = normalizeCustomImageSize(request.customSize, 4096);
+        if (customSize) {
+          const [width, height] = customSize.split('x').map(Number);
+          buffer = await sharp(buffer).resize(width, height, { fit: 'fill' }).png().toBuffer();
+        }
         const result = saveImageToDisk(taskId, index, subIdx, buffer, 'image/png');
         diskRefs.push(`URL:${result.httpUrl}`);
       }

@@ -1005,19 +1005,6 @@ export function AgentChatWorkspace({ wideMode = false, disabled = false, onConfi
                       {option.value === userOutputSize && !userCustomSize && <Check className="h-3.5 w-3.5" />}
                     </button>
                   ))}
-                  {supportsCustomSize(userModel) && (
-                    <button
-                      type="button"
-                      onClick={() => { setSizePopoverOpen(false); setCustomSizeDialogOpen(true); }}
-                      className={cn(
-                        'mt-1 flex w-full items-center gap-1.5 rounded-md border-t px-2.5 py-1.5 text-sm hover:bg-muted',
-                        userCustomSize && 'bg-muted font-medium'
-                      )}
-                    >
-                      <Maximize className="h-3.5 w-3.5" />
-                      自定义{userCustomSize ? `（${userCustomSize}）` : ''}
-                    </button>
-                  )}
                 </PopoverContent>
               </Popover>
 
@@ -1027,7 +1014,7 @@ export function AgentChatWorkspace({ wideMode = false, disabled = false, onConfi
                   className={cn(buttonVariants({ variant: 'outline', size: 'xs' }), 'gap-1')}
                 >
                   <RectangleHorizontal className="h-3 w-3" />
-                  <span className="text-[11px]">{userAspectRatio}</span>
+                  <span className="text-[11px]">{userCustomSize || userAspectRatio}</span>
                 </PopoverTrigger>
                 <PopoverContent className="w-52 p-1" align="start">
                   <div className="grid grid-cols-2 gap-1">
@@ -1037,7 +1024,7 @@ export function AgentChatWorkspace({ wideMode = false, disabled = false, onConfi
                       <button
                         key={option.value}
                         type="button"
-                        onClick={() => { setUserAspectRatio(option.value as AspectRatio); setAspectPopoverOpen(false); }}
+                        onClick={() => { setUserAspectRatio(option.value as AspectRatio); setUserCustomSize(undefined); setAspectPopoverOpen(false); }}
                         className={cn(
                           'flex items-center justify-center rounded-md px-2 py-1.5 text-sm hover:bg-muted',
                           option.value === userAspectRatio && 'bg-muted font-medium'
@@ -1047,6 +1034,19 @@ export function AgentChatWorkspace({ wideMode = false, disabled = false, onConfi
                       </button>
                     ))}
                   </div>
+                  {supportsCustomSize(userModel) && (
+                    <button
+                      type="button"
+                      onClick={() => { setAspectPopoverOpen(false); setCustomSizeDialogOpen(true); }}
+                      className={cn(
+                        'mt-1 flex w-full items-center gap-1.5 rounded-md border-t px-2.5 py-1.5 text-sm hover:bg-muted',
+                        userCustomSize && 'bg-muted font-medium'
+                      )}
+                    >
+                      <Maximize className="h-3.5 w-3.5" />
+                      自定义尺寸{userCustomSize ? `（${userCustomSize}）` : ''}
+                    </button>
+                  )}
                 </PopoverContent>
               </Popover>
 

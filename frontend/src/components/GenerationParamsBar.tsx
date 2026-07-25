@@ -63,10 +63,11 @@ export function GenerationParamsBar({ value, onChange, size = 'xs', className }:
   const supportsAdvancedParams = supportsGptImageAdvancedParams(model);
   const autoLayoutAvailable = supportsAutoLayout(model);
   const autoLayoutLocked = autoLayoutAvailable && value.outputSize === 'auto';
-  const showSizeControl = model !== 'gpt-image-2';
   const customSizeAvailable = supportsCustomSize(model) && !autoLayoutLocked;
+  // GPT Image 2 supports custom pixel dimensions; keep the menu reachable.
+  const showSizeControl = model !== 'gpt-image-2' || customSizeAvailable;
   const customSizeMaxSide = getCustomSizeMaxSide(model) || 2048;
-  const displaySizeLabel = value.customSize || getOutputSizeLabel(value.outputSize);
+  const displaySizeLabel = getOutputSizeLabel(value.outputSize);
   const handleModelChange = (newModel: ModelId) => {
     const nextGpt = getGptImageAdvancedParamsForModel(newModel, value.gptImageAdvancedParams);
     const nextSizeOptions = getSizeOptions(newModel);
@@ -158,16 +159,6 @@ export function GenerationParamsBar({ value, onChange, size = 'xs', className }:
                 {option.label}
               </button>
             ))}
-            {customSizeAvailable && (
-              <button
-                type="button"
-                onClick={() => { setAspectPopoverOpen(false); setCustomSizeDialogOpen(true); }}
-                className={cn('mt-1 flex w-full items-center gap-1.5 rounded-md border-t px-2.5 py-1.5 text-sm hover:bg-muted', value.customSize && 'bg-muted font-medium')}
-              >
-                <Maximize className="h-3.5 w-3.5" />
-                自定义{value.customSize ? `（${value.customSize}）` : ''}
-              </button>
-            )}
           </PopoverContent>
         </Popover>
       )}
@@ -175,7 +166,7 @@ export function GenerationParamsBar({ value, onChange, size = 'xs', className }:
       <Popover open={aspectPopoverOpen && !autoLayoutLocked} onOpenChange={(open) => setAspectPopoverOpen(autoLayoutLocked ? false : open)}>
         <PopoverTrigger className={cn(buttonVariants({ variant: 'outline', size }), 'gap-1')} title={autoLayoutLocked ? '自动模式已锁定比例' : '图像比例'} disabled={autoLayoutLocked}>
           <RectangleHorizontal className="h-3 w-3" />
-          <span className="text-[11px]">{value.aspectRatio}</span>
+          <span className="text-[11px]">{value.customSize || value.aspectRatio}</span>
         </PopoverTrigger>
         <PopoverContent className="w-52 p-1" align="start">
           <div className="grid grid-cols-2 gap-1">
@@ -189,6 +180,16 @@ export function GenerationParamsBar({ value, onChange, size = 'xs', className }:
               </button>
             ))}
           </div>
+          {customSizeAvailable && (
+            <button
+              type="button"
+              onClick={() => { setAspectPopoverOpen(false); setCustomSizeDialogOpen(true); }}
+              className={cn('mt-1 flex w-full items-center gap-1.5 rounded-md border-t px-2 py-1.5 text-xs hover:bg-muted', value.customSize && 'bg-muted font-medium')}
+            >
+              <Maximize className="h-3.5 w-3.5" />
+              自定义尺寸{value.customSize ? `（${value.customSize}）` : ''}
+            </button>
+          )}
         </PopoverContent>
       </Popover>
 

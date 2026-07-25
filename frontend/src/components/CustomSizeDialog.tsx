@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { CUSTOM_IMAGE_SIZE_LIMITS, normalizeCustomImageSize } from '@/lib/model-capabilities';
+import { normalizeCustomImageSize } from '@/lib/model-capabilities';
 
 interface CustomSizeDialogProps {
   open: boolean;
@@ -59,10 +59,9 @@ export function CustomSizeDialog({ open, value, maxSide, onOpenChange, onApply }
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>自定义分辨率</DialogTitle>
+          <DialogTitle>自定义尺寸</DialogTitle>
           <DialogDescription>
-            输入像素宽高，系统会自动规整到 16 的倍数。最大边长 {maxSide}px，长短边不超过 3:1，
-            总像素需在 {CUSTOM_IMAGE_SIZE_LIMITS.minPixels.toLocaleString()} 到 {CUSTOM_IMAGE_SIZE_LIMITS.maxPixels.toLocaleString()} 之间。
+            输入图片宽度和高度，单位为 px。系统会严格按输入尺寸提交给模型，最大边长 {maxSide}px。
           </DialogDescription>
         </DialogHeader>
 
@@ -72,9 +71,9 @@ export function CustomSizeDialog({ open, value, maxSide, onOpenChange, onApply }
               <span className="text-xs text-muted-foreground">宽度</span>
               <Input
                 type="number"
-                min={16}
+                min={1}
                 max={maxSide}
-                step={16}
+                step={1}
                 value={width}
                 onChange={event => setWidth(event.target.value)}
               />
@@ -84,9 +83,9 @@ export function CustomSizeDialog({ open, value, maxSide, onOpenChange, onApply }
               <span className="text-xs text-muted-foreground">高度</span>
               <Input
                 type="number"
-                min={16}
+                min={1}
                 max={maxSide}
-                step={16}
+                step={1}
                 value={height}
                 onChange={event => setHeight(event.target.value)}
               />
@@ -98,7 +97,7 @@ export function CustomSizeDialog({ open, value, maxSide, onOpenChange, onApply }
             <div className="min-w-0">
               <div className="text-xs text-muted-foreground">将使用</div>
               <div className="font-mono text-sm font-medium">
-                {normalizedSize || '尺寸无效'}
+                {normalizedSize ? `${normalizedSize.replace('x', ' × ')} px` : '尺寸无效'}
               </div>
             </div>
           </div>

@@ -165,9 +165,9 @@ export function AgentProposalCard({
   const supportsAdvancedParams = supportsGptImageAdvancedParams(imageModel);
   const autoLayoutAvailable = supportsAutoLayout(imageModel);
   const autoLayoutLocked = autoLayoutAvailable && layout.outputSize === 'auto';
-  const showSizeControl = imageModel !== 'gpt-image-2' && (sizeOptions.length > 1 || autoLayoutAvailable);
   const showAspectControl = !autoLayoutLocked && aspectRatioOptions.length > 0;
   const customSizeAvailable = supportsCustomSize(imageModel) && !autoLayoutLocked;
+  const showSizeControl = (imageModel !== 'gpt-image-2' && (sizeOptions.length > 1 || autoLayoutAvailable)) || customSizeAvailable;
   const customSizeMaxSide = getCustomSizeMaxSide(imageModel) || 2048;
   const displaySizeLabel = layout.customSize || getOutputSizeLabel(layout.outputSize);
   const currentAspectLabel = aspectRatioOptions.find(o => o.value === layout.aspectRatio)?.resolution
@@ -443,19 +443,6 @@ export function AgentProposalCard({
                   {option.value === layout.outputSize && !layout.customSize && <Check className="h-3.5 w-3.5" />}
                 </button>
               ))}
-              {customSizeAvailable && (
-                <button
-                  type="button"
-                  onClick={() => { setSizePopoverOpen(false); setCustomSizeDialogOpen(true); }}
-                  className={cn(
-                    'mt-1 flex w-full items-center gap-1.5 rounded-md border-t px-2.5 py-1.5 text-sm hover:bg-muted',
-                    layout.customSize && 'bg-muted font-medium'
-                  )}
-                >
-                  <Maximize className="h-3.5 w-3.5" />
-                  自定义{layout.customSize ? `（${layout.customSize}）` : ''}
-                </button>
-              )}
             </PopoverContent>
           </Popover>
         )}
@@ -463,12 +450,12 @@ export function AgentProposalCard({
         {showAspectControl && (
           <Popover open={aspectPopoverOpen} onOpenChange={setAspectPopoverOpen}>
             <PopoverTrigger
-              disabled={busy || !!layout.customSize}
+              disabled={busy}
               className={cn(buttonVariants({ variant: 'outline', size: 'xs' }), 'gap-1')}
               title="纵横比"
             >
               <RectangleHorizontal className="h-3 w-3" />
-              <span className="text-[11px]">{layout.aspectRatio}</span>
+              <span className="text-[11px]">{layout.customSize || layout.aspectRatio}</span>
             </PopoverTrigger>
             <PopoverContent className="w-52 p-1" align="start">
               <div className="grid grid-cols-2 gap-1">
@@ -486,6 +473,16 @@ export function AgentProposalCard({
                   </button>
                 ))}
               </div>
+              {customSizeAvailable && (
+                <button
+                  type="button"
+                  onClick={() => { setAspectPopoverOpen(false); setCustomSizeDialogOpen(true); }}
+                  className={cn('mt-1 flex w-full items-center gap-1.5 rounded-md border-t px-2.5 py-1.5 text-sm hover:bg-muted', layout.customSize && 'bg-muted font-medium')}
+                >
+                  <Maximize className="h-3.5 w-3.5" />
+                  自定义尺寸{layout.customSize ? `（${layout.customSize}）` : ''}
+                </button>
+              )}
             </PopoverContent>
           </Popover>
         )}

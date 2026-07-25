@@ -120,6 +120,7 @@ export function ImageToImageForm({
   const [model, setModel] = useState<ModelId>(() => getDefaultModelId());
   const [outputSize, setOutputSize] = useState<OutputSize>('1K');
   const [customSize, setCustomSize] = useState<string | undefined>(undefined);
+  const customSizeRef = useRef<string | undefined>(undefined);
   const [temperature, setTemperature] = useState<number>(1);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('1:1');
   const [gptImageAdvancedParams, setGptImageAdvancedParams] = useState<GptImageAdvancedParams>(DEFAULT_GPT_IMAGE_ADVANCED_PARAMS);
@@ -227,6 +228,7 @@ export function ImageToImageForm({
 
     setModel(nextModel);
     setOutputSize(nextOutputSize);
+    customSizeRef.current = nextCustomSize;
     setCustomSize(nextCustomSize);
     setAspectRatio(nextAspectRatio);
     setGptImageAdvancedParams(prev => getGptImageAdvancedParamsForModel(nextModel, prev));
@@ -291,8 +293,8 @@ export function ImageToImageForm({
   const supportsAdvancedParams = supportsGptImageAdvancedParams(model);
   const autoLayoutAvailable = supportsAutoLayout(model);
   const autoLayoutLocked = autoLayoutAvailable && outputSize === 'auto';
-  const showSizeControl = model !== 'gpt-image-2';
   const customSizeAvailable = supportsCustomSize(model) && !autoLayoutLocked;
+  const showSizeControl = model !== 'gpt-image-2' || customSizeAvailable;
   const customSizeMaxSide = getCustomSizeMaxSide(model) || 2048;
   const displaySizeLabel = customSize || getOutputSizeLabel(outputSize);
 
@@ -332,7 +334,8 @@ export function ImageToImageForm({
 
     setModel(nextModel);
     setOutputSize(nextOutputSize);
-    setCustomSize(nextCustomSize);
+      customSizeRef.current = nextCustomSize;
+      setCustomSize(nextCustomSize);
     setAspectRatio(nextAspectRatio);
     setTemperature(nextTemperature);
     setGptImageAdvancedParams(nextAdvancedParams);
@@ -383,7 +386,7 @@ export function ImageToImageForm({
         prompt: prompt.trim(),
         files: pendingFiles,
         outputSize,
-        customSize,
+        customSize: customSizeRef.current ?? customSize,
         temperature,
         aspectRatio,
         model,
@@ -820,19 +823,6 @@ export function ImageToImageForm({
                     {option.label}
                   </button>
                 ))}
-                {customSizeAvailable && (
-                  <button
-                    type="button"
-                    onClick={() => { setAspectPopoverOpen(false); setCustomSizeDialogOpen(true); }}
-                    className={cn(
-                      'mt-1 flex w-full items-center gap-1.5 rounded-md border-t px-2.5 py-1.5 text-sm hover:bg-muted',
-                      customSize && 'bg-muted font-medium'
-                    )}
-                  >
-                    <Maximize className="h-3.5 w-3.5" />
-                    自定义{customSize ? `（${customSize}）` : ''}
-                  </button>
-                )}
               </PopoverContent>
             </Popover>
           )}
@@ -844,7 +834,7 @@ export function ImageToImageForm({
               disabled={autoLayoutLocked}
             >
               <RectangleHorizontal className="h-3 w-3" />
-              <span className="text-[11px]">{aspectRatio}</span>
+              <span className="text-[11px]">{customSize || aspectRatio}</span>
             </PopoverTrigger>
             <PopoverContent className="w-52 p-1" align="start">
               <div className="grid grid-cols-2 gap-1">
@@ -861,6 +851,16 @@ export function ImageToImageForm({
                   </button>
                 ))}
               </div>
+              {customSizeAvailable && (
+                <button
+                  type="button"
+                  onClick={() => { setAspectPopoverOpen(false); setCustomSizeDialogOpen(true); }}
+                  className={cn('mt-1 flex w-full items-center gap-1.5 rounded-md border-t px-2 py-1.5 text-xs hover:bg-muted', customSize && 'bg-muted font-medium')}
+                >
+                  <Maximize className="h-3.5 w-3.5" />
+                  自定义尺寸{customSize ? `（${customSize}）` : ''}
+                </button>
+              )}
             </PopoverContent>
           </Popover>
 

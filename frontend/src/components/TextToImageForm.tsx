@@ -76,6 +76,7 @@ export function TextToImageForm({ onSubmit, disabled = false, onDraftConsumed, o
   const [model, setModel] = useState<ModelId>(() => getDefaultModelId());
   const [outputSize, setOutputSize] = useState<OutputSize>('1K');
   const [customSize, setCustomSize] = useState<string | undefined>(undefined);
+  const customSizeRef = useRef<string | undefined>(undefined);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('1:1');
   const [temperature, setTemperature] = useState<number>(1);
   const [gptImageAdvancedParams, setGptImageAdvancedParams] = useState<GptImageAdvancedParams>(DEFAULT_GPT_IMAGE_ADVANCED_PARAMS);
@@ -147,7 +148,10 @@ export function TextToImageForm({ onSubmit, disabled = false, onDraftConsumed, o
   const handleParamsChange = useCallback((patch: Partial<GenerationParamsValue>) => {
     if (patch.model !== undefined) setModel(patch.model);
     if (patch.outputSize !== undefined) setOutputSize(patch.outputSize);
-    if ('customSize' in patch) setCustomSize(patch.customSize);
+    if ('customSize' in patch) {
+      customSizeRef.current = patch.customSize;
+      setCustomSize(patch.customSize);
+    }
     if (patch.aspectRatio !== undefined) setAspectRatio(patch.aspectRatio);
     if (patch.temperature !== undefined) setTemperature(patch.temperature);
     if (patch.parallelCount !== undefined) setParallelCount(patch.parallelCount);
@@ -170,6 +174,7 @@ export function TextToImageForm({ onSubmit, disabled = false, onDraftConsumed, o
 
     setModel(nextModel);
     setOutputSize(nextOutputSize);
+    customSizeRef.current = nextCustomSize;
     setCustomSize(nextCustomSize);
     setAspectRatio(nextAspectRatio);
     setGptImageAdvancedParams(prev => getGptImageAdvancedParamsForModel(nextModel, prev));
@@ -231,6 +236,7 @@ export function TextToImageForm({ onSubmit, disabled = false, onDraftConsumed, o
     queueMicrotask(() => {
       setModel(nextModel);
       setOutputSize(nextOutputSize);
+      customSizeRef.current = nextCustomSize;
       setCustomSize(nextCustomSize);
       setAspectRatio(nextAspectRatio);
       setTemperature(nextTemperature);
@@ -273,7 +279,7 @@ export function TextToImageForm({ onSubmit, disabled = false, onDraftConsumed, o
       onSubmit({
         prompts: finalQueue.map((item) => item.prompt),
         outputSize,
-        customSize,
+        customSize: customSizeRef.current ?? customSize,
         aspectRatio,
         temperature,
         model,
