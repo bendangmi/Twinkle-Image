@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ackNovaTask, createNovaTask, resolveImageTaskProvider, type NovaTaskResponse } from '@/lib/ccode-task-client';
 import { downloadAndStoreImages } from '@/lib/image-downloader';
+import { syncDynamicModelExports } from '@/lib/gemini-config';
 import type { StoredJob } from '@/lib/job-store';
+import { saveRegistry } from '@/lib/nova-models';
 import {
   finalizeCompletedServerTask,
   submitTextToImage,
@@ -76,6 +78,31 @@ function createActions(initialJob: StoredJob): { actions: SubmitActions; getJob:
 }
 
 beforeEach(() => {
+  localStorage.clear();
+  saveRegistry({
+    imageModels: [{
+      id: 'gpt-image-2',
+      protocol: 'openai',
+      name: 'GPT Image 2',
+      modelId: 'gpt-image-2',
+      apiKey: 'test-api-key',
+      baseUrl: 'https://api.openai.com',
+      builtinPreset: 'gpt-image-2',
+      maxRefImages: 16,
+      maxOutputSize: '4K',
+      supportsAdvancedParams: true,
+    }],
+    textModels: [],
+    defaults: {
+      textToImage: 'gpt-image-2',
+      imageToImage: 'gpt-image-2',
+      reversePrompt: '',
+      agent: '',
+      promptOptimize: '',
+      imageDescribe: '',
+    },
+  });
+  syncDynamicModelExports();
   mockedAckNovaTask.mockReset();
   mockedAckNovaTask.mockResolvedValue(undefined);
   mockedCreateNovaTask.mockReset();
@@ -86,6 +113,7 @@ beforeEach(() => {
     apiKey: 'test-api-key',
     baseUrl: 'https://api.openai.com',
     protocol: 'openai',
+    modelId: 'gpt-image-2',
   });
 });
 

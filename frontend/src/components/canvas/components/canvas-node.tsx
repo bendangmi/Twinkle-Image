@@ -26,6 +26,7 @@ type CanvasNodeProps = {
   imageUrl?: string;
   isSelected: boolean;
   isRelated: boolean;
+  isRouteActive: boolean;
   isConnectionTarget: boolean;
   referenceLimitExceeded?: boolean;
   zIndex: number;
@@ -54,6 +55,7 @@ export const CanvasNode = React.memo(function CanvasNode({
   imageUrl,
   isSelected,
   isRelated,
+  isRouteActive,
   isConnectionTarget,
   referenceLimitExceeded = false,
   zIndex,
@@ -78,16 +80,19 @@ export const CanvasNode = React.memo(function CanvasNode({
 }: CanvasNodeProps) {
   const theme = canvasTheme;
   const status = data.metadata?.status ?? "idle";
-  const borderColor = referenceLimitExceeded ? "var(--destructive)" : isSelected || isConnectionTarget ? theme.node.activeStroke : isRelated ? theme.node.muted : theme.node.stroke;
+  const borderColor = referenceLimitExceeded ? "var(--destructive)" : isSelected || isConnectionTarget || isRouteActive ? theme.node.activeStroke : isRelated ? theme.node.muted : theme.node.stroke;
   const boxShadow = referenceLimitExceeded
     ? "0 0 0 4px color-mix(in srgb, var(--destructive) 18%, transparent)"
     : isSelected
       ? `0 0 0 4px color-mix(in srgb, ${theme.node.activeStroke} 18%, transparent)`
-      : undefined;
+      : isRouteActive
+        ? `0 0 0 3px color-mix(in srgb, ${theme.node.activeStroke} 12%, transparent)`
+        : undefined;
 
   return (
     <div
       data-node-id={data.id}
+      data-route-active={isRouteActive || undefined}
       className="group absolute [&_button]:cursor-pointer"
       style={{ left: data.position.x, top: data.position.y, width: data.width, height: data.height, zIndex }}
       onPointerDown={(event) => onPointerDownNode(event, data.id)}

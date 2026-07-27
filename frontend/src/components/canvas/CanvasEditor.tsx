@@ -32,6 +32,12 @@ import { buildNodeMentionReferences } from "./utils/canvas-resource-references";
 import { fitNodeSize } from "./utils/canvas-node-size";
 import { getImageBlob, imageToDataUrl, resolveImageUrl, uploadImage, type UploadedImage } from "./lib/image-storage";
 import { imageReferenceLabel } from "./lib/image-reference-prompt";
+import {
+  enumeratePromptRoutes,
+  findSelectedPromptRoute,
+  isInvalidPromptRouteSelection,
+  MANUAL_PROMPT_ROUTE_VALUE,
+} from "./lib/canvas-prompt-routes";
 import { compressReferenceDataUrl, readFileAsDataUrl } from "./lib/image-utils";
 import { CanvasNodeType, type CanvasConnection, type CanvasGenerationConfig, type CanvasNodeData, type CanvasNodeMetadata, type ContextMenuState, type ConnectionHandle, type Position, type SelectionBox, type ViewportTransform } from "./types";
 import type { ReferenceImage } from "./types-media";
@@ -833,11 +839,12 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
   const runGeneration = useCallback(
     async (sourceNode: CanvasNodeData) => {
       const promptText = (sourceNode.metadata?.composerContent ?? sourceNode.metadata?.prompt ?? "").trim();
-      if (!promptText) { showToast("请输入提示词", "info"); return; }
       const genConfig: CanvasGenerationConfig = sourceNode.metadata?.genConfig ?? defaultConfig;
       const locked = Boolean(sourceNode.metadata?.lockResultNodes);
       const count = genConfig.count;
       const context = buildNodeGenerationContext(sourceNode.id, nodes, connections, promptText);
+      if (!context.routeValid) { showToast("所选提示词路线已失效，请重新选择", "error"); return; }
+      if (!context.prompt.trim()) { showToast("请输入提示词", "info"); return; }
       const model = normalizeModel(genConfig.model);
       const maxReferenceImages = typeof MODEL_IMAGE_LIMITS[model]?.max === "number" ? MODEL_IMAGE_LIMITS[model].max : 1;
 
@@ -914,10 +921,13 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
       const sourceNode = configConnection ? nodes.find((n) => n.id === configConnection.fromNodeId) : undefined;
       const promptText = sourceNode?.metadata?.composerContent ?? sourceNode?.metadata?.prompt ?? node.metadata?.prompt ?? "";
       const genConfig = sourceNode?.metadata?.genConfig ?? defaultConfig;
-      if (!promptText) { showToast("无法获取提示词", "info"); return; }
 
       void (async () => {
-        const context = sourceNode ? buildNodeGenerationContext(sourceNode.id, nodes, connections, promptText) : { prompt: promptText, referenceImages: [], textCount: 0, imageCount: 0 };
+        const context = sourceNode
+          ? buildNodeGenerationContext(sourceNode.id, nodes, connections, promptText)
+          : { prompt: promptText, referenceImages: [], textCount: 0, imageCount: 0, routeValid: true };
+        if (!context.routeValid) { showToast("所选提示词路线已失效，请重新选择", "error"); return; }
+        if (!context.prompt.trim()) { showToast("无法获取提示词", "info"); return; }
         const hydrated = await hydrateNodeGenerationContext(context);
         void startNodeGeneration(node.id, hydrated.prompt || promptText, hydrated.referenceImages, genConfig, sourceNode?.id ?? "");
       })();
@@ -1313,6 +1323,16 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
     return set;
   }, [connections, selectedIds]);
 
+  const activePromptRoute = useMemo(() => {
+    if (selectedIds.length !== 1) return null;
+    const selectedNode = nodes.find((node) => node.id === selectedIds[0]);
+    if (selectedNode?.type !== CanvasNodeType.Config) return null;
+    const routes = enumeratePromptRoutes(selectedNode.id, nodes, connections).routes;
+    return findSelectedPromptRoute(selectedNode.metadata?.promptRouteSelection, routes);
+  }, [connections, nodes, selectedIds]);
+  const activeRouteNodeIds = useMemo(() => new Set(activePromptRoute?.nodeIds ?? []), [activePromptRoute]);
+  const activeRouteConnectionIds = useMemo(() => new Set(activePromptRoute?.connectionIds ?? []), [activePromptRoute]);
+
   const nodeById = useCallback((id: string) => nodes.find((node) => node.id === id), [nodes]);
   const contextNode = contextMenu?.type === "node" ? nodeById(contextMenu.nodeId) : undefined;
 
@@ -1691,7 +1711,9 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
             const from = nodeById(connection.fromNodeId);
             const to = nodeById(connection.toNodeId);
             if (!from || !to) return null;
-            const active = selectedConnectionId === connection.id || selectedIds.includes(connection.fromNodeId) || selectedIds.includes(connection.toNodeId);
+            const endpointSelected = selectedIds.includes(connection.fromNodeId) || selectedIds.includes(connection.toNodeId);
+            const active = selectedConnectionId === connection.id || (!activePromptRoute && endpointSelected);
+            const routeActive = activeRouteConnectionIds.has(connection.id);
             return (
               <g key={connection.id} className="pointer-events-auto">
                 <ConnectionPath
@@ -1699,6 +1721,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
                   from={from}
                   to={to}
                   active={active}
+                  routeActive={routeActive}
                   onSelect={() => {
                     setSelectedIds([]);
                     setSelectedConnectionId(connection.id);
@@ -1718,6 +1741,20 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
 
         {nodes.map((node) => {
           const referenceLimit = node.type === CanvasNodeType.Config ? getConfigReferenceLimit(node) : null;
+          const routeEnumeration = node.type === CanvasNodeType.Config
+            ? enumeratePromptRoutes(node.id, nodes, connections)
+            : { routes: [], truncated: false };
+          const routeSelection = node.metadata?.promptRouteSelection ?? { mode: "manual" as const };
+          const selectedRoute = findSelectedPromptRoute(routeSelection, routeEnumeration.routes);
+          const routeInvalid = isInvalidPromptRouteSelection(routeSelection, routeEnumeration.routes);
+          const routeValue = routeInvalid
+            ? "invalid"
+            : selectedRoute?.id ?? MANUAL_PROMPT_ROUTE_VALUE;
+          const routeOptions = [
+            { value: MANUAL_PROMPT_ROUTE_VALUE, label: "手动编排（@ 引用）" },
+            ...(routeInvalid ? [{ value: "invalid", label: "所选路线已失效，请重新选择", disabled: true }] : []),
+            ...routeEnumeration.routes.map((route) => ({ value: route.id, label: route.label })),
+          ];
           return (
             <CanvasNode
               key={node.id}
@@ -1725,6 +1762,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
               imageUrl={nodeImageUrl(node)}
               isSelected={selectedIds.includes(node.id)}
               isRelated={relatedIds.has(node.id)}
+              isRouteActive={activeRouteNodeIds.has(node.id)}
               isConnectionTarget={connecting?.targetId === node.id}
               referenceLimitExceeded={Boolean(referenceLimit?.exceeded)}
               zIndex={nodeZIndexMap[node.id] ?? 1}
@@ -1776,11 +1814,27 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
                   config={configNode.metadata?.genConfig ?? defaultConfig}
                   lockResultNodes={Boolean(configNode.metadata?.lockResultNodes)}
                   referenceLimit={referenceLimit ?? getConfigReferenceLimit(configNode)}
+                  routeValue={routeValue}
+                  routeOptions={routeOptions}
+                  routeInvalid={routeInvalid}
+                  routesTruncated={routeEnumeration.truncated}
                   busy={busyNodeIds.includes(configNode.id)}
                   optimizing={optimizing && optimizeNodeId === configNode.id}
                   onPromptChange={(value) => patchNode(configNode.id, (n) => ({ ...n, metadata: { ...n.metadata, composerContent: value } }))}
                   onConfigChange={(patch) => handleConfigChange(configNode.id, patch)}
                   onToggleLock={() => patchNode(configNode.id, (n) => ({ ...n, metadata: { ...n.metadata, lockResultNodes: !n.metadata?.lockResultNodes } }))}
+                  onRouteChange={(value) => {
+                    if (value === MANUAL_PROMPT_ROUTE_VALUE) {
+                      patchNode(configNode.id, (n) => ({ ...n, metadata: { ...n.metadata, promptRouteSelection: { mode: "manual" } } }));
+                      return;
+                    }
+                    const route = routeEnumeration.routes.find((item) => item.id === value);
+                    if (!route) return;
+                    patchNode(configNode.id, (n) => ({
+                      ...n,
+                      metadata: { ...n.metadata, promptRouteSelection: { mode: "route", connectionIds: route.connectionIds } },
+                    }));
+                  }}
                   onSelect={onSelect}
                   onOptimizePrompt={() => void handleOptimizePrompt(configNode)}
                   onGenerate={() => void runGeneration(configNode)}
