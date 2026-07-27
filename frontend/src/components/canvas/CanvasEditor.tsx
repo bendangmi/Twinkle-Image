@@ -224,6 +224,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
   const [showImageInfo, setShowImageInfo] = useState(project?.showImageInfo ?? false);
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [connecting, setConnecting] = useState<{ handle: ConnectionHandle; mouseWorld: Position; targetId?: string } | null>(null);
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
@@ -417,6 +418,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
         metadata,
       };
       setNodes((prev) => [...prev, node]);
+      setSelectedConnectionId(null);
       setSelectedIds([node.id]);
     },
     [defaultConfig, pushHistory, viewportCenterWorld],
@@ -429,7 +431,18 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
       const idSet = new Set(ids);
       setNodes((prev) => prev.filter((node) => !idSet.has(node.id)));
       setConnections((prev) => prev.filter((connection) => !idSet.has(connection.fromNodeId) && !idSet.has(connection.toNodeId)));
+      setSelectedConnectionId(null);
       setSelectedIds((prev) => prev.filter((id) => !idSet.has(id)));
+    },
+    [pushHistory],
+  );
+
+  const deleteConnection = useCallback(
+    (connectionId: string | null) => {
+      if (!connectionId) return;
+      pushHistory();
+      setConnections((prev) => prev.filter((connection) => connection.id !== connectionId));
+      setSelectedConnectionId((selectedId) => (selectedId === connectionId ? null : selectedId));
     },
     [pushHistory],
   );
@@ -442,6 +455,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
       pushHistory();
       const clones = sources.map((node) => ({ ...node, id: nanoid(), position: { x: node.position.x + 32, y: node.position.y + 32 }, metadata: { ...node.metadata } }));
       setNodes((prev) => [...prev, ...clones]);
+      setSelectedConnectionId(null);
       setSelectedIds(clones.map((node) => node.id));
     },
     [nodes, pushHistory],
@@ -663,6 +677,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
         pushHistory();
         setNodes((prev) => [...prev, ...upstreamNodes, configNode]);
         setConnections((prev) => [...prev, ...newConnections]);
+        setSelectedConnectionId(null);
         setSelectedIds([configNode.id]);
         setPromptGalleryOpen(false);
         showToast(
@@ -715,6 +730,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
       pushHistory();
       setNodes((prev) => [...prev, textNode, configNode]);
       setConnections((prev) => [...prev, connection]);
+      setSelectedConnectionId(null);
       setSelectedIds([configNode.id]);
       setTemplateOpen(false);
       showToast(`已导入模板：${template.title}`, "success");
@@ -1033,6 +1049,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
     (event: React.PointerEvent, nodeId: string) => {
       if (event.button !== 0) return;
       event.stopPropagation();
+      setSelectedConnectionId(null);
       setContextMenu(null); // 点击节点时关闭右键菜单
 
       // 点击节点时自动置顶（Fix 2: z-index stacking）
@@ -1154,6 +1171,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
             const minY = Math.min(box.startWorldY, box.currentWorldY);
             const maxY = Math.max(box.startWorldY, box.currentWorldY);
             const inside = nodes.filter((node) => node.position.x + node.width >= minX && node.position.x <= maxX && node.position.y + node.height >= minY && node.position.y <= maxY).map((node) => node.id);
+            setSelectedConnectionId(null);
             setSelectedIds([...new Set([...box.initialSelectedNodeIds, ...inside])]);
           }
           return null;
@@ -1196,11 +1214,15 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
         pushHistory();
         const clones = clipboard.current.map((node) => ({ ...node, id: nanoid(), position: { x: node.position.x + 40, y: node.position.y + 40 }, metadata: { ...node.metadata } }));
         setNodes((prev) => [...prev, ...clones]);
+        setSelectedConnectionId(null);
         setSelectedIds(clones.map((node) => node.id));
         return;
       }
       if (event.key === "Delete" || event.key === "Backspace") {
-        if (selectedIds.length) {
+        if (selectedConnectionId) {
+          event.preventDefault();
+          deleteConnection(selectedConnectionId);
+        } else if (selectedIds.length) {
           event.preventDefault();
           deleteNodes(selectedIds);
         }
@@ -1208,7 +1230,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [deleteNodes, nodes, pushHistory, redo, selectedIds, undo]);
+  }, [deleteConnection, deleteNodes, nodes, pushHistory, redo, selectedConnectionId, selectedIds, undo]);
 
   // ---- 粘贴图片/文本：选中单个同类节点则填充，否则在视口中心新建 ----
   useEffect(() => {
@@ -1241,6 +1263,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
           const size = fitNodeSize(stored.width, stored.height, 320, 320);
           const node = createImageNode(viewportCenterWorld(), { metadata: storedToMetadata(stored), width: size.width, height: size.height });
           setNodes((prev) => [...prev, node]);
+          setSelectedConnectionId(null);
           setSelectedIds([node.id]);
         } catch {
           showToast("粘贴图片失败", "error");
@@ -1274,6 +1297,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
       pushHistory();
       const node = createTextNode(viewportCenterWorld(), text);
       setNodes((prev) => [...prev, node]);
+      setSelectedConnectionId(null);
       setSelectedIds([node.id]);
     };
     window.addEventListener("paste", handlePasteText);
@@ -1655,7 +1679,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
         backgroundMode={backgroundMode}
         onViewportChange={setViewport}
         onCanvasMouseDown={handleCanvasSelectionStart}
-        onCanvasDeselect={() => { setSelectedIds([]); setContextMenu(null); if (titleDraft !== null) { renameProject(projectId, titleDraft); setTitleDraft(null); } }}
+        onCanvasDeselect={() => { setSelectedIds([]); setSelectedConnectionId(null); setContextMenu(null); if (titleDraft !== null) { renameProject(projectId, titleDraft); setTitleDraft(null); } }}
         onContextMenu={(event) => event.preventDefault()}
         onDrop={(event) => {
           event.preventDefault();
@@ -1667,10 +1691,25 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
             const from = nodeById(connection.fromNodeId);
             const to = nodeById(connection.toNodeId);
             if (!from || !to) return null;
-            const active = selectedIds.includes(connection.fromNodeId) || selectedIds.includes(connection.toNodeId);
+            const active = selectedConnectionId === connection.id || selectedIds.includes(connection.fromNodeId) || selectedIds.includes(connection.toNodeId);
             return (
               <g key={connection.id} className="pointer-events-auto">
-                <ConnectionPath connection={connection} from={from} to={to} active={active} onSelect={() => undefined} onContextMenu={(event) => setContextMenu({ type: "connection", x: event.clientX, y: event.clientY, connectionId: connection.id })} />
+                <ConnectionPath
+                  connection={connection}
+                  from={from}
+                  to={to}
+                  active={active}
+                  onSelect={() => {
+                    setSelectedIds([]);
+                    setSelectedConnectionId(connection.id);
+                    setContextMenu(null);
+                  }}
+                  onContextMenu={(event) => {
+                    setSelectedIds([]);
+                    setSelectedConnectionId(connection.id);
+                    setContextMenu({ type: "connection", x: event.clientX, y: event.clientY, connectionId: connection.id });
+                  }}
+                />
               </g>
             );
           })}
@@ -1691,9 +1730,10 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
               zIndex={nodeZIndexMap[node.id] ?? 1}
               showImageInfo={showImageInfo}
               onPointerDownNode={handleNodePointerDown}
-              onSelectNode={(id) => { if (!selectedIds.includes(id)) setSelectedIds([id]); }}
+              onSelectNode={(id) => { setSelectedConnectionId(null); if (!selectedIds.includes(id)) setSelectedIds([id]); }}
               onContextMenu={(event, id) => {
                 event.preventDefault();
+                setSelectedConnectionId(null);
                 if (!selectedIds.includes(id)) setSelectedIds([id]);
                 setContextMenu({ type: "node", x: event.clientX, y: event.clientY, nodeId: id });
               }}
@@ -1796,7 +1836,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
       </div>
 
       <CanvasToolbar
-        selectedCount={selectedIds.length}
+        selectedCount={selectedIds.length + (selectedConnectionId ? 1 : 0)}
         canUndo={undoStack.length > 0}
         canRedo={redoStack.length > 0}
         backgroundMode={backgroundMode}
@@ -1810,7 +1850,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
         onOpenTemplate={() => setTemplateOpen(true)}
         onUndo={undo}
         onRedo={redo}
-        onDelete={() => deleteNodes(selectedIds)}
+        onDelete={() => selectedConnectionId ? deleteConnection(selectedConnectionId) : deleteNodes(selectedIds)}
         onBackgroundModeChange={setBackgroundMode}
         onShowImageInfoChange={setShowImageInfo}
       />
@@ -1863,8 +1903,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
           onAngle: () => contextNode && openDialog("angle", contextNode),
           onDeleteConnection: () => {
             if (contextMenu?.type === "connection") {
-              pushHistory();
-              setConnections((prev) => prev.filter((connection) => connection.id !== contextMenu.connectionId));
+              deleteConnection(contextMenu.connectionId);
             }
           },
           onToggleRenderMode: contextNode?.type === CanvasNodeType.Text
