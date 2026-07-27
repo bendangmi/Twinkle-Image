@@ -1777,6 +1777,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
               }}
               onConnectStart={handleConnectStart}
               onResizeStart={handleResizeStart}
+              onTitleChange={(nodeId, title) => patchNode(nodeId, (current) => ({ ...current, title }))}
               onContentChange={handleTextChange}
               onUploadToNode={handleNodeUpload}
               onImportToNode={handleNodeImport}

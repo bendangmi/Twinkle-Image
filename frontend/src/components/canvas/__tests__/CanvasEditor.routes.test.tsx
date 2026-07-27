@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CanvasEditor } from "../CanvasEditor";
@@ -104,6 +104,46 @@ describe("CanvasEditor prompt routes", () => {
         connectionIds: ["core-concept", "concept-beijing", "beijing-config-1"],
       });
     });
+  });
+
+  it("renames a node inline and refreshes route labels", async () => {
+    const seeded = structuredClone(project);
+    const core = seeded.nodes.find((node) => node.id === "core")!;
+    core.title = "文本";
+    useCanvasStore.setState({ hydrated: true, projects: [seeded] });
+
+    const { container } = render(
+      <CanvasEditor projectId={project.id} onBack={() => undefined} onRequireApiKey={() => undefined} showToast={() => undefined} />,
+    );
+    const coreNode = container.querySelector('[data-node-id="core"]')!;
+    const getTitleHeader = () => within(coreNode as HTMLElement).getByTitle("双击重命名节点");
+
+    fireEvent.doubleClick(getTitleHeader());
+    const titleInput = within(coreNode as HTMLElement).getByRole("textbox", { name: "节点标题" });
+    fireEvent.change(titleInput, { target: { value: "  核心提示词  " } });
+    fireEvent.keyDown(titleInput, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(getTitleHeader()).toHaveTextContent("核心提示词");
+      expect(useCanvasStore.getState().openProject(project.id)?.nodes.find((node) => node.id === "core")?.title).toBe("核心提示词");
+    });
+
+    const select = screen.getByRole("combobox", { name: "提示词路线" });
+    fireEvent.click(select);
+    expect(await screen.findByRole("option", { name: "核心提示词 -> 城市创意 -> 北京专属" })).toBeInTheDocument();
+    fireEvent.keyDown(select, { key: "Escape" });
+
+    fireEvent.doubleClick(getTitleHeader());
+    const cancelledInput = within(coreNode as HTMLElement).getByRole("textbox", { name: "节点标题" });
+    fireEvent.change(cancelledInput, { target: { value: "取消后的标题" } });
+    fireEvent.keyDown(cancelledInput, { key: "Escape" });
+    expect(getTitleHeader()).toHaveTextContent("核心提示词");
+
+    fireEvent.doubleClick(getTitleHeader());
+    const emptyInput = within(coreNode as HTMLElement).getByRole("textbox", { name: "节点标题" });
+    fireEvent.change(emptyInput, { target: { value: "   " } });
+    fireEvent.blur(emptyInput);
+    expect(getTitleHeader()).toHaveTextContent("核心提示词");
   });
 
   it("highlights the selected config route", () => {
