@@ -113,6 +113,40 @@ describe("CanvasEditor connections", () => {
     });
   });
 
+  it("prevents the system clipboard from also pasting when duplicating copied nodes", async () => {
+    const { container } = renderEditor();
+    const nodeA = container.querySelector<HTMLElement>('[data-node-id="node-a"]')!;
+    fireEvent.pointerDown(nodeA, { button: 0, clientX: 20, clientY: 20 });
+    fireEvent.pointerUp(window);
+    fireEvent.keyDown(window, { key: "c", ctrlKey: true });
+
+    const pasteShortcut = new KeyboardEvent("keydown", {
+      key: "v",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    expect(fireEvent(window, pasteShortcut)).toBe(false);
+    await waitFor(() => {
+      const saved = useCanvasStore.getState().openProject(project.id)!;
+      expect(saved.nodes).toHaveLength(3);
+      expect(saved.nodes.map((node) => node.metadata?.content)).toEqual(["A", "B", "A"]);
+    });
+  });
+
+  it("allows system clipboard paste when no canvas nodes were copied", () => {
+    renderEditor();
+    const pasteShortcut = new KeyboardEvent("keydown", {
+      key: "v",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    expect(fireEvent(window, pasteShortcut)).toBe(true);
+  });
+
   it("aligns selected nodes from the arrange menu", async () => {
     const { container } = renderEditor();
     const nodeA = container.querySelector<HTMLElement>('[data-node-id="node-a"]')!;

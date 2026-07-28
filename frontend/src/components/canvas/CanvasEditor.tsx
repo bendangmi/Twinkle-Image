@@ -1336,6 +1336,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "v") {
         if (!clipboard.current.nodes.length) return;
+        event.preventDefault();
         pushHistory();
         const duplicated = duplicateCanvasSelection(clipboard.current.nodes, clipboard.current.connections, clipboard.current.nodes.map((node) => node.id), nanoid, 40);
         setNodes((prev) => [...prev, ...duplicated.nodes]);
