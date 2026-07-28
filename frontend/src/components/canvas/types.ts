@@ -132,6 +132,14 @@ export type ContextMenuState =
       position: Position;
     }
   | {
+      type: "connection-create";
+      x: number;
+      y: number;
+      position: Position;
+      sourceNodeId: string;
+      handleType: "source" | "target";
+    }
+  | {
       type: "node";
       x: number;
       y: number;

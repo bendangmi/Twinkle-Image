@@ -22,6 +22,7 @@ export type CanvasContextMenuActions = {
   onAnnotationChangeColor?: () => void;
   onAnnotationChangeFontSize?: () => void;
   onAddNodeAt?: (type: CanvasNodeType) => void;
+  onConnectionCreate?: (type: CanvasNodeType) => void;
   onPasteAt?: () => void;
   canPaste?: boolean;
 };
@@ -48,7 +49,12 @@ export function CanvasContextMenu({ state, node, onClose, actions }: { state: Co
   const isAnnotation = state.type === "node" && node?.type === CanvasNodeType.TextAnnotation;
 
   const items: { label: string; icon: React.ReactNode; onClick: () => void; danger?: boolean }[] = [];
-  if (state.type === "canvas") {
+  if (state.type === "connection-create") {
+    items.push({ label: "图片", icon: <ImageIcon className="size-4" />, onClick: () => actions.onConnectionCreate?.(CanvasNodeType.Image) });
+    items.push({ label: "文本", icon: <FileText className="size-4" />, onClick: () => actions.onConnectionCreate?.(CanvasNodeType.Text) });
+    items.push({ label: "注释", icon: <Square className="size-4" />, onClick: () => actions.onConnectionCreate?.(CanvasNodeType.TextAnnotation) });
+    items.push({ label: "编排", icon: <Settings2 className="size-4" />, onClick: () => actions.onConnectionCreate?.(CanvasNodeType.Config) });
+  } else if (state.type === "canvas") {
     items.push({ label: "在此添加图片节点", icon: <ImageIcon className="size-4" />, onClick: () => actions.onAddNodeAt?.(CanvasNodeType.Image) });
     items.push({ label: "在此添加文本节点", icon: <FileText className="size-4" />, onClick: () => actions.onAddNodeAt?.(CanvasNodeType.Text) });
     items.push({ label: "在此添加生成配置", icon: <Settings2 className="size-4" />, onClick: () => actions.onAddNodeAt?.(CanvasNodeType.Config) });

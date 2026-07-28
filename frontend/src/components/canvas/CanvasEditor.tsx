@@ -1259,7 +1259,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
       }
     };
 
-    const handleUp = () => {
+    const handleUp = (event: PointerEvent) => {
       const current = interaction.current;
       if (current?.kind === "connect") {
         setConnecting((conn) => {
@@ -1270,6 +1270,16 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
               pushHistory();
               setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: from, toNodeId: to }]);
             }
+          } else {
+            // 拖到空白处松开 → 弹出连线创建菜单
+            setContextMenu({
+              type: "connection-create",
+              x: event.clientX,
+              y: event.clientY,
+              position: worldFromClient(event.clientX, event.clientY),
+              sourceNodeId: current.handle.nodeId,
+              handleType: current.handle.handleType,
+            });
           }
           return null;
         });
@@ -2156,6 +2166,29 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
           },
           onAddNodeAt: (type) => {
             if (contextMenu?.type === "canvas") addNode(type, contextMenu.position);
+          },
+          onConnectionCreate: (type) => {
+            if (contextMenu?.type !== "connection-create") return;
+            const { position, sourceNodeId, handleType } = contextMenu;
+            pushHistory();
+            const spec = getNodeSpec(type);
+            const metadata: CanvasNodeMetadata = { ...spec.metadata };
+            if (type === CanvasNodeType.Config) metadata.genConfig = defaultConfig;
+            const newNode: CanvasNodeData = {
+              id: nanoid(),
+              type,
+              title: spec.title,
+              position: { x: position.x - spec.width / 2, y: position.y - spec.height / 2 },
+              width: spec.width,
+              height: spec.height,
+              metadata,
+            };
+            const from = handleType === "source" ? sourceNodeId : newNode.id;
+            const to = handleType === "source" ? newNode.id : sourceNodeId;
+            setNodes((prev) => [...prev, newNode]);
+            setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: from, toNodeId: to }]);
+            setSelectedConnectionId(null);
+            setSelectedIds([newNode.id]);
           },
           onPasteAt: () => {
             if (contextMenu?.type === "canvas") pasteClipboardAt(contextMenu.position);
