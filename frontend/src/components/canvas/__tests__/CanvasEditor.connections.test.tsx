@@ -90,4 +90,62 @@ describe("CanvasEditor connections", () => {
       expect(useCanvasStore.getState().openProject(project.id)?.connections).toHaveLength(0);
     });
   });
+
+  it("copies the connections internal to a multi-node selection", async () => {
+    const { container } = renderEditor();
+    const nodeA = container.querySelector<HTMLElement>('[data-node-id="node-a"]')!;
+    const nodeB = container.querySelector<HTMLElement>('[data-node-id="node-b"]')!;
+
+    fireEvent.pointerDown(nodeA, { button: 0, clientX: 20, clientY: 20 });
+    fireEvent.pointerUp(window);
+    fireEvent.pointerDown(nodeB, { button: 0, ctrlKey: true, clientX: 440, clientY: 20 });
+    fireEvent.pointerUp(window);
+    fireEvent.keyDown(window, { key: "c", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "v", ctrlKey: true });
+
+    await waitFor(() => {
+      const saved = useCanvasStore.getState().openProject(project.id)!;
+      expect(saved.nodes).toHaveLength(4);
+      expect(saved.connections).toHaveLength(2);
+      const clonedIds = saved.nodes.filter((node) => node.id !== "node-a" && node.id !== "node-b").map((node) => node.id);
+      expect(saved.connections.some((connection) => clonedIds.includes(connection.fromNodeId) && clonedIds.includes(connection.toNodeId))).toBe(true);
+    });
+  });
+
+  it("aligns selected nodes from the arrange menu", async () => {
+    const { container } = renderEditor();
+    const nodeA = container.querySelector<HTMLElement>('[data-node-id="node-a"]')!;
+    const nodeB = container.querySelector<HTMLElement>('[data-node-id="node-b"]')!;
+    fireEvent.pointerDown(nodeA, { button: 0, clientX: 20, clientY: 20 });
+    fireEvent.pointerUp(window);
+    fireEvent.pointerDown(nodeB, { button: 0, ctrlKey: true, clientX: 440, clientY: 20 });
+    fireEvent.pointerUp(window);
+
+    fireEvent.click(screen.getByRole("button", { name: "排列节点" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "左对齐" }));
+
+    await waitFor(() => {
+      const saved = useCanvasStore.getState().openProject(project.id)!;
+      expect(saved.nodes.find((node) => node.id === "node-a")?.position.x).toBe(0);
+      expect(saved.nodes.find((node) => node.id === "node-b")?.position.x).toBe(0);
+    });
+  });
+
+  it("creates a node at the right-clicked canvas position", async () => {
+    const { container } = renderEditor();
+    const canvas = container.querySelector<HTMLElement>(".cursor-grab")!;
+
+    fireEvent.contextMenu(canvas, { clientX: 300, clientY: 260 });
+    fireEvent.click(await screen.findByRole("button", { name: "在此添加文本节点" }));
+
+    await waitFor(() => {
+      const saved = useCanvasStore.getState().openProject(project.id)!;
+      expect(saved.nodes).toHaveLength(3);
+      const createdNode = saved.nodes[2];
+      expect({
+        x: createdNode.position.x + createdNode.width / 2,
+        y: createdNode.position.y + createdNode.height / 2,
+      }).toEqual({ x: 300, y: 260 });
+    });
+  });
 });

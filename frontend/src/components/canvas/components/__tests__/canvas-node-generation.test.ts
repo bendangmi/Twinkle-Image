@@ -110,4 +110,26 @@ describe("buildNodeGenerationContext prompt routes", () => {
     expect(context.prompt).toBe("使用 【文本1】\n\n【文本1】\n北京内容");
     expect(context.routeValid).toBe(true);
   });
+
+  it("automatically includes the previous generated image for a downstream config", () => {
+    const nodes = [
+      node("original", CanvasNodeType.Image, "原始图片", { content: "data:image/png;base64,original" }),
+      node("first-config", CanvasNodeType.Config, "首次生成", { composerContent: "首次生成" }),
+      node("generated", CanvasNodeType.Image, "首次生成 - 结果 1", { content: "data:image/png;base64,generated" }),
+      node("second-config", CanvasNodeType.Config, "继续修改", {
+        composerContent: "把天空改成傍晚",
+        promptRouteSelection: { mode: "manual" },
+      }),
+    ];
+    const connections = [
+      edge("original-first", "original", "first-config"),
+      edge("first-generated", "first-config", "generated"),
+      edge("generated-second", "generated", "second-config"),
+    ];
+
+    const context = buildNodeGenerationContext("second-config", nodes, connections, "把天空改成傍晚");
+
+    expect(context.referenceImages.map((image) => image.id)).toEqual(["generated"]);
+    expect(context.imageCount).toBe(1);
+  });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { Lock, LockOpen, Sparkles, Wand2 } from "lucide-react";
+import { Eye, Lock, LockOpen, Sparkles, Wand2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -33,6 +33,7 @@ export function CanvasConfigNodePanel({
   onRouteChange,
   onSelect,
   onOptimizePrompt,
+  onPreview,
   onGenerate,
 }: {
   prompt: string;
@@ -52,6 +53,7 @@ export function CanvasConfigNodePanel({
   onRouteChange: (value: string) => void;
   onSelect: () => void;
   onOptimizePrompt: () => void;
+  onPreview: () => void;
   onGenerate: () => void;
 }) {
   const value: GenerationParamsValue = {
@@ -105,6 +107,9 @@ export function CanvasConfigNodePanel({
           size="xs"
         />
         <div className="flex items-center gap-1.5">
+          <Button variant="outline" size="xs" onClick={onPreview} className="shrink-0" title="预览最终提示词" aria-label="预览最终提示词">
+            <Eye className="size-3.5" />
+          </Button>
           <Button
             variant="outline"
             size="xs"
@@ -112,6 +117,7 @@ export function CanvasConfigNodePanel({
             disabled={busy || optimizing || !prompt.trim()}
             className="shrink-0 gap-1"
             title="优化提示词（结合连接的上游图片/文字）"
+            aria-label="优化提示词"
           >
             {optimizing ? <Spinner className="size-3.5" /> : <Wand2 className="size-3.5" />}
           </Button>

@@ -95,6 +95,7 @@ export const CanvasNode = React.memo(function CanvasNode({
   return (
     <div
       data-node-id={data.id}
+      data-selected={isSelected || undefined}
       data-route-active={isRouteActive || undefined}
       className="group absolute [&_button]:cursor-pointer"
       style={{ left: data.position.x, top: data.position.y, width: data.width, height: data.height, zIndex }}

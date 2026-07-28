@@ -79,10 +79,11 @@ function buildRouteGenerationContext(
   const inputByNodeId = new Map([...directInputs, ...routeInputs].map((input) => [input.nodeId, input]));
   const routeBlocks = routeInputs.map((input) => input.text?.trim()).filter((text): text is string => Boolean(text));
   const additionalTextBlocks: string[] = [];
-  const selectedImages: NodeGenerationInput[] = [];
+  const selectedImages = directInputs.filter((input) => input.type === "image");
   const labelByNodeId = new Map<string, string>();
   const selectedAdditionalTextIds = new Set<string>();
-  const selectedImageIds = new Set<string>();
+  const selectedImageIds = new Set(selectedImages.map((input) => input.nodeId));
+  selectedImages.forEach((input, index) => labelByNodeId.set(input.nodeId, imageReferenceLabel(index)));
   let lastIndex = 0;
   let resolvedSupplement = "";
 
@@ -139,10 +140,11 @@ function buildRouteGenerationContext(
 
 function buildComposerGenerationContext(inputs: NodeGenerationInput[], prompt: string): NodeGenerationContext {
   const inputByNodeId = new Map(inputs.map((input) => [input.nodeId, input]));
-  const selectedInputs: NodeGenerationInput[] = [];
+  const selectedInputs = inputs.filter((input) => input.type === "image");
   const labelByNodeId = new Map<string, string>();
   const textBlocks: string[] = [];
-  const counts = { image: 0, text: 0 };
+  const counts = { image: selectedInputs.length, text: 0 };
+  selectedInputs.forEach((input, index) => labelByNodeId.set(input.nodeId, generationLabel("image", index)));
   let hasToken = false;
   let lastIndex = 0;
   let nextPrompt = "";
@@ -172,9 +174,9 @@ function buildComposerGenerationContext(inputs: NodeGenerationInput[], prompt: s
   if (!hasToken) {
     return {
       prompt,
-      referenceImages: [],
+      referenceImages,
       textCount: 0,
-      imageCount: 0,
+      imageCount: referenceImages.length,
       routeValid: true,
     };
   }
