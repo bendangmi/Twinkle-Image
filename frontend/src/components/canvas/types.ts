@@ -20,6 +20,7 @@ export enum CanvasNodeType {
 }
 
 export type CanvasNodeStatus = "idle" | "success" | "loading" | "submitting" | "queued" | "processing" | "error";
+export type CanvasInteractionMode = "select" | "pan";
 /** 移植后画布只生成图像（走宿主任务队列），不含 video/audio。 */
 export type CanvasGenerationMode = "image";
 export type CanvasImageGenerationType = "generation" | "edit";

@@ -41,7 +41,7 @@ import {
   MANUAL_PROMPT_ROUTE_VALUE,
 } from "./lib/canvas-prompt-routes";
 import { compressReferenceDataUrl, readFileAsDataUrl } from "./lib/image-utils";
-import { CanvasNodeType, type CanvasConnection, type CanvasGenerationConfig, type CanvasNodeData, type CanvasNodeMetadata, type ContextMenuState, type ConnectionHandle, type Position, type SelectionBox, type ViewportTransform } from "./types";
+import { CanvasNodeType, type CanvasConnection, type CanvasGenerationConfig, type CanvasInteractionMode, type CanvasNodeData, type CanvasNodeMetadata, type ContextMenuState, type ConnectionHandle, type Position, type SelectionBox, type ViewportTransform } from "./types";
 import type { ReferenceImage } from "./types-media";
 import { PromptOptimizeDialog } from "@/components/PromptOptimizeDialog";
 import { AiTextGenerateDialog } from "./components/canvas-ai-text-dialog";
@@ -249,6 +249,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
   const [viewport, setViewport] = useState<ViewportTransform>(() => project?.viewport ?? { x: 0, y: 0, k: 1 });
   const [backgroundMode, setBackgroundMode] = useState(project?.backgroundMode ?? "lines");
   const [showImageInfo, setShowImageInfo] = useState(project?.showImageInfo ?? false);
+  const [interactionMode, setInteractionMode] = useState<CanvasInteractionMode>("select");
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
@@ -1213,7 +1214,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
 
   const handleCanvasSelectionStart = useCallback(
     (event: React.PointerEvent) => {
-      const additive = event.shiftKey;
+      const additive = event.shiftKey || event.ctrlKey || event.metaKey;
       const world = worldFromClient(event.clientX, event.clientY);
       interaction.current = { kind: "selection", additive, initial: additive ? selectedIds : [] };
       setSelectionBox({ startWorldX: world.x, startWorldY: world.y, currentWorldX: world.x, currentWorldY: world.y, additive, initialSelectedNodeIds: additive ? selectedIds : [] });
@@ -1281,7 +1282,13 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
             const maxY = Math.max(box.startWorldY, box.currentWorldY);
             const inside = nodes.filter((node) => node.position.x + node.width >= minX && node.position.x <= maxX && node.position.y + node.height >= minY && node.position.y <= maxY).map((node) => node.id);
             setSelectedConnectionId(null);
-            setSelectedIds([...new Set([...box.initialSelectedNodeIds, ...inside])]);
+            if (box.additive) {
+              const next = new Set(box.initialSelectedNodeIds);
+              inside.forEach((id) => next.has(id) ? next.delete(id) : next.add(id));
+              setSelectedIds([...next]);
+            } else {
+              setSelectedIds(inside);
+            }
           }
           return null;
         });
@@ -1844,6 +1851,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
       <InfiniteCanvas
         containerRef={containerRef}
         viewport={viewport}
+        interactionMode={interactionMode}
         backgroundMode={backgroundMode}
         onViewportChange={setViewport}
         onCanvasMouseDown={handleCanvasSelectionStart}
@@ -2075,6 +2083,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
         canRedo={redoStack.length > 0}
         backgroundMode={backgroundMode}
         showImageInfo={showImageInfo}
+        interactionMode={interactionMode}
         showPromptGallery={showPromptGallery}
         onAddImage={() => addNode(CanvasNodeType.Image)}
         onAddText={() => addNode(CanvasNodeType.Text)}
@@ -2090,6 +2099,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
         onSearch={() => setNodeSearchOpen(true)}
         onBackgroundModeChange={setBackgroundMode}
         onShowImageInfoChange={setShowImageInfo}
+        onInteractionModeChange={setInteractionMode}
       />
 
       <CanvasZoomControls

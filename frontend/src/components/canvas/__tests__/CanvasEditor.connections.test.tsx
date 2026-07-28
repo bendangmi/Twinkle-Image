@@ -45,6 +45,7 @@ class ResizeObserverStub {
 describe("CanvasEditor connections", () => {
   beforeEach(() => {
     vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+    HTMLElement.prototype.setPointerCapture = vi.fn();
     useCanvasStore.setState({ hydrated: true, projects: [project] });
   });
 
@@ -133,7 +134,7 @@ describe("CanvasEditor connections", () => {
 
   it("creates a node at the right-clicked canvas position", async () => {
     const { container } = renderEditor();
-    const canvas = container.querySelector<HTMLElement>(".cursor-grab")!;
+    const canvas = container.querySelector<HTMLElement>("[data-canvas-mode]")!;
 
     fireEvent.contextMenu(canvas, { clientX: 300, clientY: 260 });
     fireEvent.click(await screen.findByRole("button", { name: "在此添加文本节点" }));
@@ -146,6 +147,68 @@ describe("CanvasEditor connections", () => {
         x: createdNode.position.x + createdNode.width / 2,
         y: createdNode.position.y + createdNode.height / 2,
       }).toEqual({ x: 300, y: 260 });
+    });
+  });
+
+  it("box-selects nodes by default when dragging the blank canvas", async () => {
+    const { container } = renderEditor();
+    const canvas = container.querySelector<HTMLElement>("[data-canvas-mode]")!;
+
+    expect(screen.getByRole("button", { name: "选择模式" })).toHaveAttribute("data-pressed");
+    fireEvent.pointerDown(canvas, { button: 0, pointerId: 1, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 700, clientY: 200 });
+    fireEvent.pointerUp(window, { pointerId: 1 });
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-node-id="node-a"]')).toHaveAttribute("data-selected", "true");
+      expect(container.querySelector('[data-node-id="node-b"]')).toHaveAttribute("data-selected", "true");
+    });
+  });
+
+  it("toggles nodes inside a modifier-assisted box selection", async () => {
+    const { container } = renderEditor();
+    const nodeA = container.querySelector<HTMLElement>('[data-node-id="node-a"]')!;
+    const canvas = container.querySelector<HTMLElement>("[data-canvas-mode]")!;
+    fireEvent.pointerDown(nodeA, { button: 0, clientX: 20, clientY: 20 });
+    fireEvent.pointerUp(window);
+
+    fireEvent.pointerDown(canvas, { button: 0, pointerId: 4, shiftKey: true, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(window, { pointerId: 4, clientX: 700, clientY: 200 });
+    fireEvent.pointerUp(window, { pointerId: 4 });
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-node-id="node-a"]')).not.toHaveAttribute("data-selected");
+      expect(container.querySelector('[data-node-id="node-b"]')).toHaveAttribute("data-selected", "true");
+    });
+  });
+
+  it("pans the blank canvas after switching to hand mode", async () => {
+    const { container } = renderEditor();
+    fireEvent.click(screen.getByRole("button", { name: "抓手模式" }));
+    const canvas = container.querySelector<HTMLElement>('[data-canvas-mode="pan"]')!;
+
+    fireEvent.pointerDown(canvas, { button: 0, pointerId: 2, clientX: 700, clientY: 400 });
+    fireEvent.pointerMove(window, { pointerId: 2, clientX: 750, clientY: 450 });
+    fireEvent.pointerUp(window, { pointerId: 2 });
+
+    await waitFor(() => {
+      expect(container.querySelector<HTMLElement>(".origin-top-left")).toHaveStyle("transform: translate(50px, 50px) scale(1)");
+    });
+  });
+
+  it("temporarily pans with Space while selection mode stays active", async () => {
+    const { container } = renderEditor();
+    const canvas = container.querySelector<HTMLElement>("[data-canvas-mode]")!;
+
+    fireEvent.keyDown(window, { code: "Space" });
+    fireEvent.pointerDown(canvas, { button: 0, pointerId: 3, clientX: 700, clientY: 400 });
+    fireEvent.pointerMove(window, { pointerId: 3, clientX: 730, clientY: 420 });
+    fireEvent.pointerUp(window, { pointerId: 3 });
+    fireEvent.keyUp(window, { code: "Space" });
+
+    await waitFor(() => {
+      expect(container.querySelector<HTMLElement>(".origin-top-left")).toHaveStyle("transform: translate(30px, 20px) scale(1)");
+      expect(screen.getByRole("button", { name: "选择模式" })).toHaveAttribute("data-pressed");
     });
   });
 });

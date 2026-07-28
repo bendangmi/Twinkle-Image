@@ -181,6 +181,29 @@ describe("CanvasEditor prompt routes", () => {
     expect(getTitleHeader()).toHaveTextContent("核心提示词");
   });
 
+  it("saves an inline node rename when the blank canvas is pressed", async () => {
+    const { container } = render(
+      <CanvasEditor projectId={project.id} onBack={() => undefined} onRequireApiKey={() => undefined} showToast={() => undefined} />,
+    );
+    const coreNode = container.querySelector('[data-node-id="core"]')!;
+    fireEvent.doubleClick(within(coreNode as HTMLElement).getByTitle("双击重命名节点"));
+    const titleInput = within(coreNode as HTMLElement).getByRole("textbox", { name: "节点标题" });
+    fireEvent.change(titleInput, { target: { value: "画布点击后保存" } });
+
+    const canvas = container.querySelector('[data-canvas-mode="select"]') as HTMLElement & { setPointerCapture: (pointerId: number) => void };
+    canvas.setPointerCapture = vi.fn();
+    fireEvent.pointerDown(canvas, {
+      button: 0,
+      pointerId: 1,
+      clientX: 1200,
+      clientY: 700,
+    });
+
+    await waitFor(() => {
+      expect(useCanvasStore.getState().openProject(project.id)?.nodes.find((node) => node.id === "core")?.title).toBe("画布点击后保存");
+    });
+  });
+
   it("undoes an inline node rename as one edit", async () => {
     const { container } = render(
       <CanvasEditor projectId={project.id} onBack={() => undefined} onRequireApiKey={() => undefined} showToast={() => undefined} />,

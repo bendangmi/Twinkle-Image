@@ -59,9 +59,11 @@ export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpe
             <DialogTitle>快捷键</DialogTitle>
           </DialogHeader>
           <div className={cn("space-y-3 border-t border-border pt-4 text-sm")}>
-            <Shortcut label="拖动画布" value="平移视图" />
+            <Shortcut label="选择模式 + 空白拖动" value="框选节点" />
+            <Shortcut label="抓手模式 + 空白拖动" value="平移视图" />
+            <Shortcut label="空格 + 拖动" value="临时平移视图" />
+            <Shortcut label="鼠标中键拖动" value="平移视图" />
             <Shortcut label="滚轮" value="缩放画布" />
-            <Shortcut label="Ctrl / Cmd + 拖动" value="框选多个节点" />
             <Shortcut label="Shift / Ctrl / Cmd + 点击" value="追加选择节点" />
             <Shortcut label="Ctrl / Cmd + C / V" value="复制 / 粘贴节点" />
             <Shortcut label="Ctrl / Cmd + Z" value="撤销" />

@@ -1,11 +1,13 @@
 "use client";
 
-import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignStartHorizontal, AlignStartVertical, BetweenHorizontalStart, BetweenVerticalStart, CircleDot, Columns3, Grid2x2, Image as ImageIcon, Info, LayoutDashboard, LibraryBig, Redo2, Rows3, Search, Settings2, SlidersHorizontal, Sparkles, Square, Trash2, Type, Undo2, Workflow } from "lucide-react";
+import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignStartHorizontal, AlignStartVertical, BetweenHorizontalStart, BetweenVerticalStart, CircleDot, Columns3, Grid2x2, Hand, Image as ImageIcon, Info, LayoutDashboard, LibraryBig, MousePointer2, Redo2, Rows3, Search, Settings2, SlidersHorizontal, Sparkles, Square, Trash2, Type, Undo2, Workflow } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Segmented } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import type { CanvasBackgroundMode } from "../lib/canvas-theme";
+import type { CanvasInteractionMode } from "../types";
 import type { CanvasArrangeMode } from "../utils/canvas-layout";
 import { CanvasTooltip } from "./canvas-ui";
 
@@ -17,6 +19,7 @@ type CanvasToolbarProps = {
   canRedo: boolean;
   backgroundMode: CanvasBackgroundMode;
   showImageInfo: boolean;
+  interactionMode: CanvasInteractionMode;
   showPromptGallery?: boolean;
   onAddImage: () => void;
   onAddText: () => void;
@@ -32,6 +35,7 @@ type CanvasToolbarProps = {
   onSearch: () => void;
   onBackgroundModeChange: (mode: CanvasBackgroundMode) => void;
   onShowImageInfoChange: (value: boolean) => void;
+  onInteractionModeChange: (mode: CanvasInteractionMode) => void;
 };
 
 export function CanvasToolbar({
@@ -42,6 +46,7 @@ export function CanvasToolbar({
   canRedo,
   backgroundMode,
   showImageInfo,
+  interactionMode,
   showPromptGallery = true,
   onAddImage,
   onAddText,
@@ -57,6 +62,7 @@ export function CanvasToolbar({
   onSearch,
   onBackgroundModeChange,
   onShowImageInfoChange,
+  onInteractionModeChange,
 }: CanvasToolbarProps) {
   return (
     <div
@@ -64,6 +70,18 @@ export function CanvasToolbar({
       className="absolute top-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-border bg-card/95 px-2 py-1.5 shadow-lg backdrop-blur"
       onPointerDown={(event) => event.stopPropagation()}
     >
+      <Segmented
+        value={interactionMode}
+        onChange={onInteractionModeChange}
+        options={[
+          { value: "select", icon: <MousePointer2 />, title: "选择模式" },
+          { value: "pan", icon: <Hand />, title: "抓手模式" },
+        ]}
+        className="border-0 bg-transparent p-0"
+      />
+
+      <div className="mx-1 h-5 w-px bg-border" />
+
       <CanvasTooltip label="添加图片节点">
         <Button variant="ghost" size="icon-sm" onClick={onAddImage} aria-label="添加图片节点">
           <ImageIcon className="size-4" />
