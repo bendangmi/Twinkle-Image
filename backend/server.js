@@ -105,7 +105,7 @@ function hashPromptGalleryPassword(password) {
 const PORT = Number(process.env.PORT || 3000);
 const HOSTNAME = process.env.HOSTNAME || '0.0.0.0';
 const DB_PATH = process.env.NOVA_TASK_DB || path.join(__dirname, 'nova-tasks.sqlite');
-const TASK_TTL_MS = 12 * 60 * 60 * 1000;
+const TASK_TTL_MS = (Number(process.env.NOVA_TASK_TTL_HOURS) || 12) * 60 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 const IMAGE_STREAM_ENABLED = String(process.env.NOVA_IMAGE_STREAM ?? 'true').toLowerCase() !== 'false';
