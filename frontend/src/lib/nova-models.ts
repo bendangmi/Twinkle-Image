@@ -73,7 +73,7 @@ export interface NovaModelRegistry {
 }
 
 const REGISTRY_KEY = 'nova-model-registry';
-const SMART_AGI_BASE_URL = 'https://big-model.smart-agi.com';
+const SMART_AGI_BASE_URL = 'https://st.smart-agi.com';
 const DEFAULT_IMAGE_MODEL_ID = 'default-gpt-image-2';
 const DEFAULT_TEXT_MODEL_ID = 'default-gpt-5-5';
 

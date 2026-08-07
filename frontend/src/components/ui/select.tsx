@@ -23,6 +23,7 @@ function Select<T extends string>({
   className,
   contentClassName,
   disabled,
+  ariaLabel,
   size = "default",
 }: {
   value: T
@@ -32,6 +33,7 @@ function Select<T extends string>({
   className?: string
   contentClassName?: string
   disabled?: boolean
+  ariaLabel?: string
   size?: "sm" | "default"
 }) {
   return (
@@ -43,6 +45,7 @@ function Select<T extends string>({
     >
       <SelectPrimitive.Trigger
         data-slot="select-trigger"
+        aria-label={ariaLabel}
         className={cn(
           "inline-flex w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-2.5 text-sm transition-colors outline-none select-none hover:bg-muted/60 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25 disabled:pointer-events-none disabled:opacity-50 data-[popup-open]:bg-muted",
           size === "sm" ? "h-7" : "h-8",

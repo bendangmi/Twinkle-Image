@@ -45,7 +45,7 @@ export async function generateAssetMetadata(input: GenerateAssetMetadataInput): 
   const configured = getConfiguredTextModel(input.model || ASSET_METADATA_MODEL);
   const protocol = (configured?.protocol || 'openai-responses') as TextProviderProtocol;
   const actualModel = configured?.modelId || input.model || ASSET_METADATA_MODEL;
-  const baseUrl = configured?.baseUrl || input.baseUrl || 'https://big-model.smart-agi.com';
+  const baseUrl = configured?.baseUrl || input.baseUrl || 'https://st.smart-agi.com';
 
   const prompt = [
     '请观察这张图片，为个人素材库生成一组中文元数据。',
