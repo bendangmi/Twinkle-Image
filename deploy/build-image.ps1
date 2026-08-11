@@ -11,16 +11,16 @@ $deployDir = [System.IO.Path]::GetFullPath((Split-Path -Parent $MyInvocation.MyC
 $rootDir = [System.IO.Path]::GetFullPath((Join-Path $deployDir '..'))
 $versionPath = Join-Path $deployDir 'VERSION'
 $currentVersion = ([System.IO.File]::ReadAllText($versionPath)).Trim()
-$semverPattern = '^(?<major>0|[1-9]\d*)\.(?<minor>0|[1-9]\d*)\.(?<patch>0|[1-9]\d*)$'
+$semverPattern = '^(?<major>0|[1-9]\d*)\.(?<minor>0|[1-9]\d*)\.(?<patch>0|[1-9]\d*)(?:-(?<prerelease>[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$'
 
 function Assert-Semver([string]$Value) {
   if ($Value -notmatch $semverPattern) {
-    throw "Invalid semantic version '$Value'. Expected MAJOR.MINOR.PATCH."
+    throw "Invalid semantic version '$Value'. Expected MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-PRERELEASE."
   }
 }
 
 if ($currentVersion -notmatch $semverPattern) {
-  throw "Invalid semantic version '$currentVersion'. Expected MAJOR.MINOR.PATCH."
+  throw "Invalid semantic version '$currentVersion'. Expected MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-PRERELEASE."
 }
 $currentParts = $Matches.Clone()
 

@@ -28,7 +28,7 @@ FROM node:22-slim AS production
 
 WORKDIR /app
 
-ARG APP_VERSION=3.1.7
+ARG APP_VERSION=3.1.7-fix.1
 
 LABEL org.opencontainers.image.title="Twinkle Image" \
       org.opencontainers.image.description="AI image generation workspace" \
@@ -41,7 +41,7 @@ ENV NODE_ENV=production \
     NOVA_TASK_DB=/app/backend/data/nova-tasks.sqlite \
     NOVA_IMAGE_DIR=/app/backend/data/nova-images
 
-COPY --chown=node:node backend/server.js backend/image-retry.js ./backend/
+COPY --chown=node:node backend/server.js backend/image-retry.js backend/twinkle-model-api.js ./backend/
 COPY --chown=node:node --from=backend-deps /app/backend/node_modules/ ./backend/node_modules/
 COPY --chown=node:node --from=frontend-builder /app/frontend/out/ ./frontend/out/
 
