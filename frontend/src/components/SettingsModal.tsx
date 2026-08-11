@@ -7,7 +7,12 @@ import {
   Download,
   Eye,
   EyeOff,
+  ExternalLink,
   ImageIcon,
+  KeyRound,
+  LoaderCircle,
+  LogIn,
+  LogOut,
   Plus,
   RefreshCw,
   Save,
@@ -59,6 +64,20 @@ import { syncDynamicModelExports } from '@/lib/gemini-config';
 import { exportAllData, importAllData, downloadBlob, generateBackupFilename, type BackupProgress as BackupProgressType } from '@/lib/backup-utils';
 import { checkModelsAvailability, type ModelStatus } from '@/lib/ccode-task-client';
 import { hasAnyApiKey } from '@/lib/settings-storage';
+import {
+  TWINKLE_MODEL_ACCOUNT_URL,
+  applyTwinkleModelKeys,
+  clearTwinkleModelSession,
+  completeTwinkleModelLogin2FA,
+  fetchTwinkleModelDefaultKeys,
+  isTwinkleModel2FAChallenge,
+  loadTwinkleModelSession,
+  loginTwinkleModel,
+  logoutTwinkleModel,
+  saveTwinkleModelSession,
+  type TwinkleModelLogin2FAChallenge,
+  type TwinkleModelSession,
+} from '@/lib/twinkle-model';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -153,6 +172,13 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
   const [modelCheckError, setModelCheckError] = useState<string | null>(null);
   const [showImageApiKey, setShowImageApiKey] = useState(false);
   const [showTextApiKey, setShowTextApiKey] = useState(false);
+  const [twinkleSession, setTwinkleSession] = useState<TwinkleModelSession | null>(null);
+  const [twinkleEmail, setTwinkleEmail] = useState('');
+  const [twinklePassword, setTwinklePassword] = useState('');
+  const [twinkle2FA, setTwinkle2FA] = useState<TwinkleModelLogin2FAChallenge | null>(null);
+  const [twinkleTotpCode, setTwinkleTotpCode] = useState('');
+  const [twinkleBusy, setTwinkleBusy] = useState(false);
+  const [twinkleError, setTwinkleError] = useState<string | null>(null);
 
   const [backupProgress, setBackupProgress] = useState<BackupProgressType>({ percent: 0, message: '' });
   const [isBackupActive, setIsBackupActive] = useState(false);
@@ -175,6 +201,10 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
     setModelCheckError(null);
     setBackupError(null);
     setBackupSuccess(null);
+    setTwinkleSession(loadTwinkleModelSession());
+    setTwinkle2FA(null);
+    setTwinkleTotpCode('');
+    setTwinkleError(null);
   }, [isOpen]);
 
   useEffect(() => {
@@ -305,6 +335,98 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
     setModelCheckError(null);
   };
 
+  const configureFromTwinkleSession = async (session: TwinkleModelSession) => {
+    setTwinkleBusy(true);
+    setTwinkleError(null);
+    setSuccess(null);
+    setError(null);
+    try {
+      const result = await fetchTwinkleModelDefaultKeys(session);
+      const nextRegistry = applyTwinkleModelKeys({
+        imageModels,
+        textModels,
+        defaults,
+        generationSettings,
+      }, result.keys);
+      saveTwinkleModelSession(result.session);
+      saveRegistry(nextRegistry);
+      syncDynamicModelExports();
+      setTwinkleSession(result.session);
+      setImageModels(nextRegistry.imageModels.map(cloneImageModel));
+      setTextModels(nextRegistry.textModels.map(cloneTextModel));
+      setDefaults(nextRegistry.defaults);
+      setSelectedImageModelId(nextRegistry.imageModels[0]?.id || '');
+      setSelectedTextModelId(nextRegistry.textModels[0]?.id || '');
+      setTwinklePassword('');
+      setTwinkle2FA(null);
+      setTwinkleTotpCode('');
+      window.dispatchEvent(new Event('nova-model-registry-updated'));
+      onApiKeyChange?.(hasAnyApiKey());
+      setSuccess('已从 Twinkle Model 拉取默认密钥并完成三个模型的配置');
+      setModelStatuses(null);
+      setModelCheckError(null);
+    } catch (err) {
+      setTwinkleError(err instanceof Error ? err.message : 'Twinkle Model 配置失败');
+    } finally {
+      setTwinkleBusy(false);
+    }
+  };
+
+  const handleTwinkleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!twinkleEmail.trim() || !twinklePassword) {
+      setTwinkleError('请输入 Twinkle Model 邮箱和密码');
+      return;
+    }
+    setTwinkleBusy(true);
+    setTwinkleError(null);
+    try {
+      const result = await loginTwinkleModel(twinkleEmail.trim(), twinklePassword);
+      if (isTwinkleModel2FAChallenge(result)) {
+        setTwinkle2FA(result);
+        return;
+      }
+      saveTwinkleModelSession(result);
+      setTwinkleSession(result);
+      await configureFromTwinkleSession(result);
+    } catch (err) {
+      setTwinkleError(err instanceof Error ? err.message : 'Twinkle Model 登录失败');
+    } finally {
+      setTwinkleBusy(false);
+    }
+  };
+
+  const handleTwinkle2FA = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!twinkle2FA || !/^\d{6}$/.test(twinkleTotpCode)) {
+      setTwinkleError('请输入 6 位二次验证码');
+      return;
+    }
+    setTwinkleBusy(true);
+    setTwinkleError(null);
+    try {
+      const session = await completeTwinkleModelLogin2FA(twinkle2FA.tempToken, twinkleTotpCode);
+      saveTwinkleModelSession(session);
+      setTwinkleSession(session);
+      await configureFromTwinkleSession(session);
+    } catch (err) {
+      setTwinkleError(err instanceof Error ? err.message : 'Twinkle Model 二次验证失败');
+    } finally {
+      setTwinkleBusy(false);
+    }
+  };
+
+  const handleTwinkleLogout = async () => {
+    const currentSession = twinkleSession;
+    clearTwinkleModelSession();
+    setTwinkleSession(null);
+    setTwinkle2FA(null);
+    setTwinkleTotpCode('');
+    setTwinklePassword('');
+    setTwinkleError(null);
+    await logoutTwinkleModel(currentSession);
+  };
+
   const handleCheckModels = async () => {
     const configuredModels = [
       ...imageModels.filter(isCompleteImageModel),
@@ -418,6 +540,112 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
 
             {error && <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
             {success && <div className="rounded-lg border border-success/25 bg-success/10 p-3 text-sm text-success">{success}</div>}
+
+            <div className="rounded-lg border p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-muted/40">
+                    <KeyRound className="size-4 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium">Twinkle Model</p>
+                    <p className="text-xs text-muted-foreground">登录后自动配置 GPT Image 2、Banana Pro 和 gpt-5.5。</p>
+                  </div>
+                </div>
+                <a
+                  href={TWINKLE_MODEL_ACCOUNT_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+                >
+                  用户中心
+                  <ExternalLink className="size-3.5" />
+                </a>
+              </div>
+
+              {twinkleSession ? (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{twinkleSession.user.username || twinkleSession.user.email}</p>
+                    <p className="truncate text-xs text-muted-foreground">{twinkleSession.user.email}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      disabled={twinkleBusy}
+                      onClick={() => configureFromTwinkleSession(twinkleSession)}
+                    >
+                      {twinkleBusy ? <LoaderCircle className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                      重新拉取并配置
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" className="gap-2" onClick={handleTwinkleLogout}>
+                      <LogOut className="size-4" />
+                      退出登录
+                    </Button>
+                  </div>
+                </div>
+              ) : twinkle2FA ? (
+                <form className="mt-4 grid gap-3 border-t pt-4 sm:grid-cols-[minmax(0,1fr)_auto]" onSubmit={handleTwinkle2FA}>
+                  <div className="space-y-2">
+                    <label htmlFor="twinkle-model-totp" className="text-xs text-muted-foreground">二次验证码（{twinkle2FA.userEmailMasked}）</label>
+                    <Input
+                      id="twinkle-model-totp"
+                      value={twinkleTotpCode}
+                      onChange={(event) => setTwinkleTotpCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                    />
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <Button type="submit" className="gap-2" disabled={twinkleBusy}>
+                      {twinkleBusy ? <LoaderCircle className="size-4 animate-spin" /> : <LogIn className="size-4" />}
+                      验证并配置
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => setTwinkle2FA(null)}>返回</Button>
+                  </div>
+                </form>
+              ) : (
+                <form className="mt-4 grid gap-3 border-t pt-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" onSubmit={handleTwinkleLogin}>
+                  <div className="space-y-2">
+                    <label htmlFor="twinkle-model-email" className="text-xs text-muted-foreground">邮箱</label>
+                    <Input
+                      id="twinkle-model-email"
+                      type="email"
+                      value={twinkleEmail}
+                      onChange={(event) => setTwinkleEmail(event.target.value)}
+                      autoComplete="username"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="twinkle-model-password" className="text-xs text-muted-foreground">密码</label>
+                    <Input
+                      id="twinkle-model-password"
+                      type="password"
+                      value={twinklePassword}
+                      onChange={(event) => setTwinklePassword(event.target.value)}
+                      autoComplete="current-password"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button type="submit" className="w-full gap-2 md:w-auto" disabled={twinkleBusy}>
+                      {twinkleBusy ? <LoaderCircle className="size-4 animate-spin" /> : <LogIn className="size-4" />}
+                      登录并配置
+                    </Button>
+                  </div>
+                </form>
+              )}
+
+              {twinkleError && (
+                <div className="mt-3 rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+                  {twinkleError}
+                </div>
+              )}
+              <p className="mt-3 text-xs text-muted-foreground">退出登录不会删除已配置的模型；也可直接在下方手动填写。</p>
+            </div>
 
             <div className="rounded-xl border p-4 space-y-4">
               <div className="flex items-center justify-between gap-3">

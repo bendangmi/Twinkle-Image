@@ -4,7 +4,7 @@
 
 **自托管的 AI 图像生成工作台 · 自定义模型 · 多模式 · PWA · 实时任务**
 
-[![Version](https://img.shields.io/badge/version-v3.1.2-blue.svg)](https://github.com)
+[![Version](https://img.shields.io/badge/version-v3.1.6-blue.svg)](https://github.com)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org)
@@ -24,7 +24,7 @@ Twinkle Image 是一个面向个人/团队的 AI 图像生成工作台。前端�
 - 所有配置存储在浏览器 localStorage
 - 文字模型支持 Google（generateContent）和 OpenAI（Response 协议）
 
-> 当前版本：**v3.1.2**
+> 当前版本：**v3.1.6**
 
 ## 💎 赞助商
 
@@ -362,15 +362,24 @@ npm run go             # 打包：build + 汇总到根 out.zip
 
 ### 构建镜像
 
-```bash
-docker build --build-arg APP_VERSION=3.1.5 -t twinkle-image:3.1.5 .
+在项目根目录执行一键发布脚本即可自动递增补丁版本，并生成可上传服务器的
+tar 包和 SHA256 校验文件：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\deploy\build-image.ps1
+```
+
+构建失败后重试当前版本：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\deploy\build-image.ps1 -NoVersionBump
 ```
 
 ### 离线镜像与 Compose 部署
 
 完整步骤见 [`deploy/DEPLOY.md`](deploy/DEPLOY.md)。本地执行
 `deploy/build-image.ps1` 会生成带版本号的
-`deploy/twinkle-image-3.1.5.tar`，可上传服务器后通过 `docker load` 导入。
+`deploy/twinkle-image-3.1.6.tar`，可上传服务器后通过 `docker load` 导入。
 
 </details>
 

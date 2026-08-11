@@ -11,6 +11,14 @@ const {
   isValidImageMaxRetries,
   runImageGenerationWithRetries,
 } = require('./image-retry');
+const {
+  completeTwinkleModel2FA,
+  listAllTwinkleApiKeys,
+  loginToTwinkleModel,
+  logoutTwinkleModelSession,
+  refreshTwinkleModelSession,
+  selectTwinkleDefaultApiKeys,
+} = require('./twinkle-model-api');
 
 const ENV_FILE_PATH = path.join(process.cwd(), '.env');
 const TASK_STATUS = {
@@ -1768,6 +1776,70 @@ async function handleApi(req, res, pathname) {
       const password = String(body?.password || '');
       const ok = hashPromptGalleryPassword(password) === hashPromptGalleryPassword(expected);
       sendJson(res, 200, { ok });
+      return true;
+    }
+
+    if (req.method === 'POST' && apiPathname === '/api/nova/twinkle-model/login') {
+      const body = await readJsonBody(req);
+      const email = String(body?.email || '').trim();
+      const password = String(body?.password || '');
+      if (!email || !password || email.length > 320 || password.length > 1024) {
+        sendJson(res, 400, { error: '请输入有效的邮箱和密码' });
+        return true;
+      }
+      const result = await loginToTwinkleModel(email, password);
+      sendJson(res, 200, result);
+      return true;
+    }
+
+    if (req.method === 'POST' && apiPathname === '/api/nova/twinkle-model/login/2fa') {
+      const body = await readJsonBody(req);
+      const tempToken = String(body?.tempToken || '').trim();
+      const totpCode = String(body?.totpCode || '').trim();
+      if (!tempToken || !/^\d{6}$/.test(totpCode)) {
+        sendJson(res, 400, { error: '请输入 6 位二次验证码' });
+        return true;
+      }
+      const result = await completeTwinkleModel2FA(tempToken, totpCode);
+      sendJson(res, 200, result);
+      return true;
+    }
+
+    if (req.method === 'POST' && apiPathname === '/api/nova/twinkle-model/keys') {
+      const body = await readJsonBody(req);
+      const accessToken = String(body?.accessToken || '').trim();
+      if (!accessToken || accessToken.length > 8192) {
+        sendJson(res, 401, { error: 'Twinkle Model 登录已失效', code: 'TWINKLE_MODEL_UNAUTHORIZED' });
+        return true;
+      }
+      const apiKeys = await listAllTwinkleApiKeys(accessToken);
+      sendJson(res, 200, selectTwinkleDefaultApiKeys(apiKeys));
+      return true;
+    }
+
+    if (req.method === 'POST' && apiPathname === '/api/nova/twinkle-model/refresh') {
+      const body = await readJsonBody(req);
+      const refreshToken = String(body?.refreshToken || '').trim();
+      if (!refreshToken || refreshToken.length > 8192) {
+        sendJson(res, 401, { error: 'Twinkle Model 登录已失效', code: 'TWINKLE_MODEL_UNAUTHORIZED' });
+        return true;
+      }
+      const result = await refreshTwinkleModelSession(refreshToken);
+      sendJson(res, 200, result);
+      return true;
+    }
+
+    if (req.method === 'POST' && apiPathname === '/api/nova/twinkle-model/logout') {
+      const body = await readJsonBody(req);
+      const refreshToken = String(body?.refreshToken || '').trim();
+      if (refreshToken) {
+        try {
+          await logoutTwinkleModelSession(refreshToken);
+        } catch {
+          // Local logout must remain available when the remote session already expired.
+        }
+      }
+      sendJson(res, 200, { ok: true });
       return true;
     }
 

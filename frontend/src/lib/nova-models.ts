@@ -75,6 +75,7 @@ export interface NovaModelRegistry {
 const REGISTRY_KEY = 'nova-model-registry';
 const SMART_AGI_BASE_URL = 'https://st.smart-agi.com';
 const DEFAULT_IMAGE_MODEL_ID = 'default-gpt-image-2';
+const DEFAULT_BANANA_PRO_MODEL_ID = 'default-banana-pro';
 const DEFAULT_TEXT_MODEL_ID = 'default-gpt-5-5';
 
 export const BUILTIN_IMAGE_PRESETS: Record<BuiltinImagePresetId, BuiltinImagePreset> = {
@@ -93,7 +94,7 @@ export const BUILTIN_IMAGE_PRESETS: Record<BuiltinImagePresetId, BuiltinImagePre
     protocol: 'google',
     name: 'Banana Pro',
     modelId: 'gemini-3-pro-image-preview',
-    baseUrl: 'https://generativelanguage.googleapis.com',
+    baseUrl: SMART_AGI_BASE_URL,
     maxRefImages: 14,
     maxOutputSize: '4K',
     supportsAdvancedParams: false,
@@ -168,10 +169,10 @@ export const BUILTIN_IMAGE_PRESET_OPTIONS = Object.values(BUILTIN_IMAGE_PRESETS)
 export const DEFAULT_TEXT_MODEL_TEMPLATES = [
   {
     protocol: 'openai-responses' as const,
-    name: 'GPT 5.5',
+    name: 'gpt-5.5',
     modelId: 'gpt-5.5',
     baseUrl: SMART_AGI_BASE_URL,
-    note: getTextProviderDescription('openai-responses'),
+    note: 'OpenAI Response',
   },
   {
     protocol: 'google-gemini' as const,
@@ -341,10 +342,12 @@ function ensureGenerationSettings(raw: Partial<GenerationSettings> | undefined):
   };
 }
 
-function createDefaultImageModel(): ImageModelConfig {
-  const preset = BUILTIN_IMAGE_PRESETS['gpt-image-2'];
+function createDefaultImageModel(
+  presetId: 'gpt-image-2' | 'gemini-3-pro-image-preview' = 'gpt-image-2',
+): ImageModelConfig {
+  const preset = BUILTIN_IMAGE_PRESETS[presetId];
   return {
-    id: DEFAULT_IMAGE_MODEL_ID,
+    id: presetId === 'gpt-image-2' ? DEFAULT_IMAGE_MODEL_ID : DEFAULT_BANANA_PRO_MODEL_ID,
     protocol: preset.protocol,
     name: preset.name,
     modelId: preset.modelId,
@@ -372,7 +375,7 @@ function createDefaultTextModel(): TextModelConfig {
 
 function getInitialRegistry(): NovaModelRegistry {
   return {
-    imageModels: [createDefaultImageModel()],
+    imageModels: [createDefaultImageModel('gpt-image-2'), createDefaultImageModel('gemini-3-pro-image-preview')],
     textModels: [createDefaultTextModel()],
     defaults: DEFAULT_DEFAULTS,
     generationSettings: DEFAULT_GENERATION_SETTINGS,
@@ -392,7 +395,9 @@ export function loadRegistry(): NovaModelRegistry {
   const parsed = JSON.parse(raw) as Partial<NovaModelRegistry>;
   const imageModels = ensureImageModels(parsed.imageModels);
   const textModels = ensureTextModels(parsed.textModels);
-  const seededImageModels = imageModels.length > 0 ? imageModels : [createDefaultImageModel()];
+  const seededImageModels = imageModels.length > 0
+    ? imageModels
+    : [createDefaultImageModel('gpt-image-2'), createDefaultImageModel('gemini-3-pro-image-preview')];
   const seededTextModels = textModels.length > 0 ? textModels : [createDefaultTextModel()];
   const defaults = ensureDefaults(parsed.defaults, seededImageModels, seededTextModels);
   const generationSettings = ensureGenerationSettings(parsed.generationSettings);

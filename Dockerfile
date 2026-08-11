@@ -13,6 +13,13 @@ FROM node:22-slim AS backend-deps
 
 WORKDIR /app/backend
 
+ARG DEBIAN_MIRROR=mirrors.aliyun.com
+
+RUN sed -i "s|deb.debian.org|${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources \
+  && apt-get -o Acquire::Retries=5 -o Acquire::http::Pipeline-Depth=0 update \
+  && apt-get -o Acquire::Retries=5 -o Acquire::http::Pipeline-Depth=0 install -y --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY backend/package.json backend/package-lock.json ./
 
 RUN npm ci --omit=dev
@@ -21,7 +28,7 @@ FROM node:22-slim AS production
 
 WORKDIR /app
 
-ARG APP_VERSION=3.1.5
+ARG APP_VERSION=3.1.6
 
 LABEL org.opencontainers.image.title="Twinkle Image" \
       org.opencontainers.image.description="AI image generation workspace" \
