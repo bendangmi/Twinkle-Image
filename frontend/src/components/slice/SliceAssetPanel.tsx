@@ -70,6 +70,7 @@ interface SliceAssetPanelProps {
   onCopy: (id: string) => void;
   onDelete: (ids: string[]) => void;
   onOpenSettings: (id: string) => void;
+  onOpenInpaint: (id: string) => void;
   onToggleHidden: (id: string) => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
   /** 执行某个处理操作（算法类可批量，AI 类由本组件保证只传单个 id） */
@@ -98,6 +99,7 @@ export function SliceAssetPanel({
   onCopy,
   onDelete,
   onOpenSettings,
+  onOpenInpaint,
   onToggleHidden,
   onReorder,
   onRunOp,
@@ -143,6 +145,7 @@ export function SliceAssetPanel({
                 onCopy={onCopy}
                 onDelete={handleDeleteClick}
                 onOpenSettings={onOpenSettings}
+                onOpenInpaint={onOpenInpaint}
                 onToggleHidden={onToggleHidden}
                 onRunOp={onRunOp}
                 onRestoreOp={onRestoreOp}
@@ -207,6 +210,7 @@ interface AssetRowProps {
   onCopy: (id: string) => void;
   onDelete: (id: string) => void;
   onOpenSettings: (id: string) => void;
+  onOpenInpaint: (id: string) => void;
   onToggleHidden: (id: string) => void;
   onRunOp: (op: SliceProcessOp, id: string) => void;
   onRestoreOp: (op: SliceProcessOp, id: string) => void;
@@ -227,6 +231,7 @@ function AssetRow({
   onCopy,
   onDelete,
   onOpenSettings,
+  onOpenInpaint,
   onToggleHidden,
   onRunOp,
   onRestoreOp,
@@ -373,6 +378,18 @@ function AssetRow({
           title={asset.hidden ? '显示' : '隐藏'}
         >
           {asset.hidden ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          disabled={aiBusy}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenInpaint(asset.id);
+          }}
+          title="AI 补齐"
+        >
+          <Sparkles className="size-3.5" />
         </Button>
         <Button
           variant="ghost"

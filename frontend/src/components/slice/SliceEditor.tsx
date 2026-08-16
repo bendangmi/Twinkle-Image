@@ -96,6 +96,7 @@ import { SliceAssetPanel } from './SliceAssetPanel';
 import { SlicePropertyPanel } from './SlicePropertyPanel';
 import { BackgroundConfirmDialog } from './BackgroundConfirmDialog';
 import { SliceContextMenu } from './SliceContextMenu';
+import { SliceInpaintEditor } from './SliceInpaintEditor';
 import { DecomposeReviewDialog, type DecomposeCandidate } from './DecomposeReviewDialog';
 import { StreamingCodePanel } from './StreamingCodePanel';
 
@@ -315,6 +316,7 @@ export function SliceEditor({ onConfigureApiKey, showToast, onTaskStateChange }:
   // 右键菜单「切图设置」会把该切图设为唯一选中项，属性面板随即显示它；
   // 这里保留一个标记用于 Esc 的分级收起顺序。
   const [settingsAssetId, setSettingsAssetId] = useState<string | null>(null);
+  const [inpaintAssetId, setInpaintAssetId] = useState<string | null>(null);
   // 空格按住 = 临时平移（光标反馈需要参与渲染，故同时有 state 与 ref）
   const [spaceHeld, setSpaceHeld] = useState(false);
   // 算法类处理进行中（透明 / SVG，批量时逐张处理，需要禁用按钮并给反馈）
@@ -359,6 +361,7 @@ export function SliceEditor({ onConfigureApiKey, showToast, onTaskStateChange }:
     processBusy ||
     aiOp !== null ||
     cutoutLoading ||
+    inpaintAssetId !== null ||
     decomposeDialogOpen ||
     backgroundDialogOpen;
 
@@ -1107,6 +1110,19 @@ export function SliceEditor({ onConfigureApiKey, showToast, onTaskStateChange }:
     [mergeCommit, scheduleRecrop],
   );
 
+  const handleInpaintSaved = useCallback(
+    (assetId: string, newBlobKey: string) => {
+      void commit('AI 补齐', (draft) => {
+        const a = draft.assets.find((x) => x.id === assetId);
+        if (a) {
+          a.currentBlobKey = newBlobKey;
+          a.aiCompleted = true;
+        }
+      });
+    },
+    [commit],
+  );
+
   const handleBackgroundGenerated = useCallback(
     (newAssets: SliceAsset[]) => {
       void commit(`生成完整背景（${newAssets.length} 个）`, (draft) => {
@@ -1659,6 +1675,9 @@ export function SliceEditor({ onConfigureApiKey, showToast, onTaskStateChange }:
   const allHidden = assets.length > 0 && assets.every((a) => a.hidden);
   const allTransparent = assets.length > 0 && assets.every((a) => isProcessOpActive(a, 'transparent'));
   const allSvg = assets.length > 0 && assets.every((a) => isProcessOpActive(a, 'svg'));
+  const inpaintAsset = inpaintAssetId
+    ? assets.find((a) => a.id === inpaintAssetId) ?? null
+    : null;
   // 属性面板的编辑对象：当前全部选中项（顺序与 assets 一致，便于批量编辑时展示稳定）
   const selectedAssets = assets.filter((a) => selectedIds.has(a.id));
   const contextMenuAsset = contextMenu
@@ -2017,6 +2036,7 @@ export function SliceEditor({ onConfigureApiKey, showToast, onTaskStateChange }:
                 else void handleLocalOp(op, [id]);
               }}
               onRestoreOp={(op, id) => handleRestoreOp(op, [id])}
+              onOpenInpaint={(id) => setInpaintAssetId(id)}
               processBusy={processBusy}
               aiOp={aiOp}
               onCancelAiOp={() => aiOpAbortRef.current?.abort()}
@@ -2029,6 +2049,7 @@ export function SliceEditor({ onConfigureApiKey, showToast, onTaskStateChange }:
               screen={activeWorkspace.screen}
               onUpdate={handleUpdateAssets}
               onRecrop={(ids) => void recropAssets(ids)}
+              onOpenInpaint={(id) => setInpaintAssetId(id)}
               onTransparent={(ids) => void handleMakeTransparent(ids)}
               onRestoreTransparency={handleRestoreTransparency}
               transparencyBusy={processBusy}
@@ -2036,6 +2057,17 @@ export function SliceEditor({ onConfigureApiKey, showToast, onTaskStateChange }:
           </div>
         </aside>
       </div>
+
+      {/* AI 补齐编辑器 */}
+      <SliceInpaintEditor
+        asset={inpaintAsset}
+        open={inpaintAssetId !== null}
+        onOpenChange={(open: boolean) => !open && setInpaintAssetId(null)}
+        model={settings.model}
+        onSaved={handleInpaintSaved}
+        onConfigureApiKey={onConfigureApiKey}
+        showToast={showToast}
+      />
 
       {/* AI 拆图结果确认 */}
       <DecomposeReviewDialog
@@ -2078,6 +2110,7 @@ export function SliceEditor({ onConfigureApiKey, showToast, onTaskStateChange }:
           selectedCount={selectedIds.size}
           onClose={() => setContextMenu(null)}
           onOpenSettings={() => setSettingsAssetId(contextMenu.assetId)}
+          onInpaint={() => setInpaintAssetId(contextMenu.assetId)}
           onDuplicate={() => void handleDuplicate()}
           onToggleHidden={handleToggleHiddenSelection}
           onBringToFront={() => handleReorderZ(contextMenuTargetIds, 'front')}

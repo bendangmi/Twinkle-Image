@@ -62,13 +62,15 @@ export function WorkspaceModeTabs({ wideMode = false, showPromptGallery = false 
         const el = event.currentTarget;
         if (!el || (event.pointerType === 'mouse' && event.button !== 0) || el.scrollWidth <= el.clientWidth) return;
 
+        // 刻意不在这里 setPointerCapture：一旦容器捕获指针，pointerup 会被重定向到容器，
+        // click 的目标随之变成 TabsList 而不是被点的 TabsTrigger，标签就再也切不动了。
+        // 捕获推迟到 pointermove 里真正判定为拖动之后（见下），单纯点击全程不涉及捕获。
         dragStateRef.current = {
           pointerId: event.pointerId,
           startX: event.clientX,
           scrollLeft: el.scrollLeft,
           dragged: false,
         };
-        el.setPointerCapture(event.pointerId);
       }}
       onPointerMove={event => {
         const el = event.currentTarget;
@@ -76,20 +78,26 @@ export function WorkspaceModeTabs({ wideMode = false, showPromptGallery = false 
         if (state.pointerId !== event.pointerId) return;
 
         const deltaX = event.clientX - state.startX;
-        if (Math.abs(deltaX) > 4) state.dragged = true;
+        if (Math.abs(deltaX) > 4 && !state.dragged) {
+          state.dragged = true;
+          // 越过阈值才捕获：此后指针移出容器仍能继续收到 pointermove，拖动不会中断
+          el.setPointerCapture(event.pointerId);
+        }
         if (state.dragged) {
           el.scrollLeft = state.scrollLeft - deltaX;
           event.preventDefault();
         }
       }}
       onPointerUp={event => {
+        const el = event.currentTarget;
         if (dragStateRef.current.pointerId !== event.pointerId) return;
-        event.currentTarget.releasePointerCapture(event.pointerId);
+        if (el.hasPointerCapture(event.pointerId)) el.releasePointerCapture(event.pointerId);
         dragStateRef.current.pointerId = -1;
       }}
       onPointerCancel={event => {
-        if (dragStateRef.current.pointerId === event.pointerId) {
-          event.currentTarget.releasePointerCapture(event.pointerId);
+        const el = event.currentTarget;
+        if (dragStateRef.current.pointerId === event.pointerId && el.hasPointerCapture(event.pointerId)) {
+          el.releasePointerCapture(event.pointerId);
         }
         dragStateRef.current.pointerId = -1;
       }}

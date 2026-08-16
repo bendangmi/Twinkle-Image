@@ -46,6 +46,7 @@ interface SlicePropertyPanelProps {
   screen: SliceScreen;
   /** 局部更新：作用于全部选中项 */
   onUpdate: (ids: string[], patch: Partial<SliceAsset>) => void;
+  onOpenInpaint: (id: string) => void;
   onRecrop: (ids: string[]) => void;
   /** 本地透明化（不消耗 AI 额度） */
   onTransparent: (ids: string[]) => void;
@@ -65,6 +66,7 @@ export function SlicePropertyPanel({
   selected,
   screen,
   onUpdate,
+  onOpenInpaint,
   onRecrop,
   onTransparent,
   onRestoreTransparency,
@@ -256,6 +258,11 @@ export function SlicePropertyPanel({
         <Button variant="outline" size="sm" className="flex-1" onClick={() => onRecrop(ids)}>
           重新裁剪
         </Button>
+        {single && (
+          <Button variant="outline" size="sm" className="flex-1" onClick={() => onOpenInpaint(single.id)}>
+            AI 补齐
+          </Button>
+        )}
         {allTransparent ? (
           <Button
             variant="outline"

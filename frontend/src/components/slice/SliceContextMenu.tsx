@@ -10,6 +10,7 @@ import {
   Grid2x2,
   RotateCcw,
   Settings2,
+  Sparkles,
   Trash2,
 } from 'lucide-react';
 
@@ -31,6 +32,7 @@ export interface SliceContextMenuProps {
   onToggleHidden: () => void;
   onBringToFront: () => void;
   onSendToBack: () => void;
+  onInpaint: () => void;
   onTransparent: () => void;
   onRestoreTransparency: () => void;
   onDelete: () => void;
@@ -52,6 +54,7 @@ export function SliceContextMenu({
   onToggleHidden,
   onBringToFront,
   onSendToBack,
+  onInpaint,
   onTransparent,
   onRestoreTransparency,
   onDelete,
@@ -98,6 +101,7 @@ export function SliceContextMenu({
     },
     { key: 'front', label: '置于顶层', icon: <ArrowUpToLine className="size-3.5" />, onClick: onBringToFront, divider: true },
     { key: 'back', label: '置于底层', icon: <ArrowDownToLine className="size-3.5" />, onClick: onSendToBack },
+    { key: 'inpaint', label: 'AI 补齐', icon: <Sparkles className="size-3.5" />, onClick: onInpaint, divider: true },
     transparent
       ? { key: 'restore', label: `还原透明化${suffix}`, icon: <RotateCcw className="size-3.5" />, onClick: onRestoreTransparency }
       : { key: 'transparent', label: `本地透明化${suffix}`, icon: <Grid2x2 className="size-3.5" />, onClick: onTransparent },
