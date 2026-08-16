@@ -4,7 +4,7 @@
 
 **自托管的 AI 图像生成工作台 · 自定义模型 · 多模式 · PWA · 实时任务**
 
-[![Version](https://img.shields.io/badge/version-v3.1.2-blue.svg)](https://github.com)
+[![Version](https://img.shields.io/badge/version-v3.2.0-blue.svg)](https://github.com)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org)
@@ -24,7 +24,7 @@ Nova Image Studio（简称 Nova Image）是一个面向个人/团队的 AI 图�
 - 所有配置存储在浏览器 localStorage
 - 文字模型支持 Google（generateContent）和 OpenAI（Response 协议）
 
-> 当前版本：**v3.1.2**
+> 当前版本：**v3.2.0**
 
 ## 💎 赞助商
 
