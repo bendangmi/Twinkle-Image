@@ -362,8 +362,12 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
     setBackupError(null);
     setBackupSuccess(null);
     try {
-      await importAllData(file, (progress) => setBackupProgress(progress));
-      setBackupSuccess('数据已成功导入，页面将在 2 秒后刷新。');
+      const warnings = await importAllData(file, (progress) => setBackupProgress(progress));
+
+      setBackupSuccess(warnings.length > 0
+        ? `数据已导入，但有 ${warnings.length} 项提示：${warnings.join('；')}。页面将在 2 秒后刷新...`
+        : '数据已成功导入！页面将在 2 秒后刷新以应用更改...');
+
       setTimeout(() => window.location.reload(), 2000);
     } catch (err) {
       setBackupError(err instanceof Error ? err.message : '导入失败');

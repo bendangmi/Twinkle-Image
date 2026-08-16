@@ -15,13 +15,26 @@ const MESSAGES_STORE = 'messages';
 const IMAGES_STORE = 'images';
 const META_STORE = 'meta';
 
+// 单例缓存数据库连接（参考 image-db.ts 的模式），避免每次读写 open 后泄漏连接。
+let agentDbPromise: Promise<IDBDatabase | null> | null = null;
+
 function openAgentDB(): Promise<IDBDatabase | null> {
   if (typeof indexedDB === 'undefined') return Promise.resolve(null);
+  if (agentDbPromise) return agentDbPromise;
 
-  return new Promise((resolve) => {
+  agentDbPromise = new Promise((resolve) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onerror = () => resolve(null);
-    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => { agentDbPromise = null; resolve(null); };
+    req.onsuccess = () => {
+      const db = req.result;
+      // 另一个 tab 或备份导入触发版本变更时主动关闭并失效缓存，下次调用会重新打开。
+      db.onversionchange = () => {
+        try { db.close(); } catch { /* ignore */ }
+        agentDbPromise = null;
+      };
+      db.onclose = () => { agentDbPromise = null; };
+      resolve(db);
+    };
     req.onupgradeneeded = (e) => {
       const db = (e.target as IDBOpenDBRequest).result;
       if (!db.objectStoreNames.contains(MESSAGES_STORE)) {
@@ -35,6 +48,7 @@ function openAgentDB(): Promise<IDBDatabase | null> {
       }
     };
   });
+  return agentDbPromise;
 }
 
 function getAll<T>(db: IDBDatabase, storeName: string): Promise<T[]> {
