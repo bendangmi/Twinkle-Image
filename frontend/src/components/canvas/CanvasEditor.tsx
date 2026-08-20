@@ -68,6 +68,22 @@ type CanvasEditorProps = {
 };
 
 const MAX_HISTORY = 50;
+const RESULT_CACHE_RETRY_DELAYS = [15_000, 30_000, 60_000] as const;
+
+function waitForResultCacheRetry(ms: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    if (signal.aborted) onAbort();
+    else signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
 
 function connectedNodeIds(seedId: string, connections: CanvasConnection[]) {
   const visited = new Set([seedId]);
@@ -179,7 +195,20 @@ function buildPromptGalleryCanvasPrompt(referenceImageCount: number) {
 }
 
 function storedToMetadata(stored: UploadedImage | CanvasGeneratedImage, extra?: Partial<CanvasNodeMetadata>): CanvasNodeMetadata {
-  return { status: "success", content: stored.url, storageKey: stored.storageKey, mimeType: stored.mimeType, naturalWidth: stored.width, naturalHeight: stored.height, bytes: stored.bytes, ...extra };
+  const generated = "cacheStatus" in stored ? stored : undefined;
+  return {
+    status: "success",
+    content: stored.url,
+    storageKey: stored.storageKey,
+    mimeType: stored.mimeType,
+    naturalWidth: stored.width,
+    naturalHeight: stored.height,
+    bytes: stored.bytes,
+    resultCacheStatus: generated?.cacheStatus,
+    resultRemoteUrl: generated?.remoteUrl,
+    resultCacheError: generated?.cacheError,
+    ...extra,
+  };
 }
 
 async function importPromptGalleryImage(url: string, promptContent: string) {
@@ -295,6 +324,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
   const gestureActive = useRef(false);
   const clipboard = useRef<{ nodes: CanvasNodeData[]; connections: CanvasConnection[] }>({ nodes: [], connections: [] });
   const activeGenerationsRef = useRef<Map<string, AbortController>>(new Map());
+  const resultCacheRetriesRef = useRef<Map<string, AbortController>>(new Map());
   const retryCooldownRef = useRef<Map<string, number>>(new Map());
   const textGenerationControllersRef = useRef<Map<string, AbortController>>(new Map());
   const [undoStack, setUndoStack] = useState<HistorySnapshot[]>([]);
@@ -928,6 +958,21 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
     [nodes, onRequireApiKey, setBusy],
   );
 
+  const applyGeneratedImage = useCallback((nodeId: string, image: CanvasGeneratedImage, prompt?: string) => {
+    const size = fitNodeSize(image.width, image.height, 360, 360);
+    patchNode(nodeId, (node) => ({
+      ...node,
+      width: size.width,
+      height: size.height,
+      metadata: {
+        ...node.metadata,
+        ...storedToMetadata(image, { prompt: prompt ?? node.metadata?.prompt }),
+        generationTaskId: node.metadata?.generationTaskId,
+        generationStartedAt: node.metadata?.generationStartedAt,
+      },
+    }));
+  }, [patchNode]);
+
   const runGeneration = useCallback(
     async (sourceNode: CanvasNodeData) => {
       const promptText = (sourceNode.metadata?.composerContent ?? sourceNode.metadata?.prompt ?? "").trim();
@@ -1045,11 +1090,10 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
         const result = await checkExistingTask(taskId);
         if (result.status === "completed" && result.images?.length) {
           const image = result.images[0];
-          const size = fitNodeSize(image.width, image.height, 360, 360);
           activeGenerationsRef.current.get(node.id)?.abort();
           activeGenerationsRef.current.delete(node.id);
-          patchNode(node.id, (n) => ({ ...n, width: size.width, height: size.height, metadata: { ...n.metadata, ...storedToMetadata(image, { prompt: n.metadata?.prompt }), generationTaskId: n.metadata?.generationTaskId, generationStartedAt: n.metadata?.generationStartedAt } }));
-          showToast("已取回生成结果", "success");
+          applyGeneratedImage(node.id, image);
+          showToast(image.cacheStatus === "cached" ? "已取回生成结果" : "原图暂时不可用，已保留远端结果并继续自动重试", image.cacheStatus === "cached" ? "success" : "info");
           return;
         }
         if (result.status === "failed" || result.status === "expired") {
@@ -1063,8 +1107,72 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
         showToast("获取进度失败", "error");
       }
     },
-    [patchNode, showToast],
+    [applyGeneratedImage, patchNode, showToast],
   );
+
+  // 已完成任务的图片缓存失败时，在后台按递增间隔继续取回；刷新页面后 pending 节点也会进入这里。
+  useEffect(() => {
+    const pendingNodes = nodes.filter((node) =>
+      node.type === CanvasNodeType.Image
+      && node.metadata?.generationTaskId
+      && node.metadata?.resultCacheStatus === "pending",
+    );
+    const pendingIds = new Set(pendingNodes.map((node) => node.id));
+
+    for (const [nodeId, controller] of resultCacheRetriesRef.current) {
+      if (!pendingIds.has(nodeId)) {
+        controller.abort();
+        resultCacheRetriesRef.current.delete(nodeId);
+      }
+    }
+
+    for (const node of pendingNodes) {
+      if (resultCacheRetriesRef.current.has(node.id)) continue;
+      const taskId = node.metadata!.generationTaskId!;
+      const controller = new AbortController();
+      resultCacheRetriesRef.current.set(node.id, controller);
+
+      void (async () => {
+        try {
+          for (const retryDelay of RESULT_CACHE_RETRY_DELAYS) {
+            await waitForResultCacheRetry(retryDelay, controller.signal);
+            const result = await checkExistingTask(taskId, 1);
+            if (controller.signal.aborted) return;
+            if (result.status === "completed" && result.images?.length) {
+              const image = result.images[0];
+              applyGeneratedImage(node.id, image);
+              if (image.cacheStatus === "cached") return;
+              continue;
+            }
+            if (result.status === "failed" || result.status === "expired") {
+              patchNode(node.id, (current) => ({
+                ...current,
+                metadata: { ...current.metadata, resultCacheStatus: "failed", resultCacheError: result.error || "原图已无法取回" },
+              }));
+              return;
+            }
+          }
+          patchNode(node.id, (current) => ({
+            ...current,
+            metadata: { ...current.metadata, resultCacheStatus: "failed", resultCacheError: current.metadata?.resultCacheError || "自动取回原图失败" },
+          }));
+        } catch (error) {
+          if (controller.signal.aborted) return;
+          patchNode(node.id, (current) => ({
+            ...current,
+            metadata: { ...current.metadata, resultCacheStatus: "failed", resultCacheError: error instanceof Error ? error.message : "自动取回原图失败" },
+          }));
+        } finally {
+          resultCacheRetriesRef.current.delete(node.id);
+        }
+      })();
+    }
+  }, [applyGeneratedImage, nodes, patchNode]);
+
+  useEffect(() => () => {
+    for (const controller of resultCacheRetriesRef.current.values()) controller.abort();
+    resultCacheRetriesRef.current.clear();
+  }, []);
 
   // 刷新页面后恢复进行中的生成任务（检查已有 taskId 的状态）
   useEffect(() => {
@@ -1087,8 +1195,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
 
           if (result.status === "completed" && result.images?.length) {
             const image = result.images[0];
-            const size = fitNodeSize(image.width, image.height, 360, 360);
-            patchNode(node.id, (n) => ({ ...n, width: size.width, height: size.height, metadata: { ...n.metadata, ...storedToMetadata(image, { prompt: n.metadata?.prompt }), generationTaskId: n.metadata?.generationTaskId, generationStartedAt: n.metadata?.generationStartedAt } }));
+            applyGeneratedImage(node.id, image);
             return;
           }
           if (result.status === "failed" || result.status === "expired") {
@@ -1098,18 +1205,13 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
 
           // 仍在进行中 → 继续轮询
           patchNode(node.id, (n) => ({ ...n, metadata: { ...n.metadata, status: result.status as CanvasNodeMetadata["status"] } }));
-          await pollNodeTask(taskId, (taskStatus) => {
+          const images = await pollNodeTask(taskId, (taskStatus) => {
             if (controller.signal.aborted) return;
             patchNode(node.id, (n) => ({ ...n, metadata: { ...n.metadata, status: taskStatus as CanvasNodeMetadata["status"] } }));
           }, controller.signal);
 
           if (controller.signal.aborted) return;
-          const finalResult = await checkExistingTask(taskId);
-          if (finalResult.images?.length) {
-            const image = finalResult.images[0];
-            const size = fitNodeSize(image.width, image.height, 360, 360);
-            patchNode(node.id, (n) => ({ ...n, width: size.width, height: size.height, metadata: { ...n.metadata, ...storedToMetadata(image, { prompt: n.metadata?.prompt }), generationTaskId: n.metadata?.generationTaskId, generationStartedAt: n.metadata?.generationStartedAt } }));
-          }
+          if (images[0]) applyGeneratedImage(node.id, images[0]);
         } catch {
           if (controller.signal.aborted) return;
           patchNode(node.id, (n) => ({ ...n, metadata: { ...n.metadata, status: "error", errorDetails: "恢复生成状态失败" } }));
