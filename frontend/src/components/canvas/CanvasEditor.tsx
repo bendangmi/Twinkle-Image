@@ -1115,6 +1115,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
     const pendingNodes = nodes.filter((node) =>
       node.type === CanvasNodeType.Image
       && node.metadata?.generationTaskId
+      && node.metadata?.status === "success"
       && node.metadata?.resultCacheStatus === "pending",
     );
     const pendingIds = new Set(pendingNodes.map((node) => node.id));
