@@ -302,6 +302,9 @@ export function applyTwinkleModelKeys(
       agent: text.model.id,
       promptOptimize: text.model.id,
       imageDescribe: text.model.id,
+      sliceDecomposition: text.model.id,
+      sliceReconstruct: text.model.id,
+      sliceImageEdit: gptImage.model.id,
     },
   };
 }
