@@ -443,12 +443,27 @@ export function loadRegistry(): NovaModelRegistry {
     return getInitialRegistry();
   }
 
-  const raw = localStorage.getItem(REGISTRY_KEY);
+  let raw: string | null;
+  try {
+    raw = localStorage.getItem(REGISTRY_KEY);
+  } catch {
+    return getInitialRegistry();
+  }
   if (!raw) {
     return getInitialRegistry();
   }
 
-  const parsed = JSON.parse(raw) as Partial<NovaModelRegistry>;
+  let parsed: Partial<NovaModelRegistry>;
+  try {
+    const candidate: unknown = JSON.parse(raw);
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+      return getInitialRegistry();
+    }
+    parsed = candidate as Partial<NovaModelRegistry>;
+  } catch {
+    // A partially written or manually edited registry must not take down the workspace.
+    return getInitialRegistry();
+  }
   const imageModels = ensureImageModels(parsed.imageModels);
   const textModels = ensureTextModels(parsed.textModels);
   const seededImageModels = imageModels.length > 0

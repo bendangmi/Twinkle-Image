@@ -1,6 +1,6 @@
 services:
   twinkle-image:
-    image: twinkle-image:3.1.8
+    image: twinkle-image:3.1.9
     container_name: twinkle-image
     ports:
       - "${TWINKLE_PORT:-3002}:3000"

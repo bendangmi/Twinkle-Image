@@ -4,6 +4,9 @@ import fs from "node:fs";
 import withPWA from "next-pwa";
 
 const dev = process.env.NODE_ENV !== "production";
+const backendUrl = (process.env.NOVA_BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "")
+  .trim()
+  .replace(/\/+$/, "");
 
 // 从根目录 package.json 读取版本号，编译时自动注入
 const rootPkgPath = path.join(__dirname, "..", "package.json");
@@ -16,6 +19,19 @@ const nextConfig: NextConfig = {
   // 仅在生产构建时启用静态导出，开发模式关闭以支持 HMR 热更新
   ...(dev ? {} : { output: "export" }),
   trailingSlash: true,
+  skipTrailingSlashRedirect: true,
+  ...(dev && backendUrl
+    ? {
+        async rewrites() {
+          return [
+            {
+              source: "/api/nova/:path*",
+              destination: `${backendUrl}/api/nova/:path*`,
+            },
+          ];
+        },
+      }
+    : {}),
   images: {
     unoptimized: true,
   },

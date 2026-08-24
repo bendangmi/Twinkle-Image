@@ -36,18 +36,14 @@ const registry: NovaModelRegistry = {
 
 describe('applyTwinkleModelKeys', () => {
   it('creates the requested templates and makes them the defaults', () => {
-    const configured = applyTwinkleModelKeys(registry, {
-      text: 'text-key',
-      gptImage2: 'gpt-image-key',
-      bananaPro: 'banana-key',
-    });
+    const configured = applyTwinkleModelKeys(registry, 'system-key');
 
     expect(configured.imageModels.slice(0, 2)).toMatchObject([
       {
         protocol: 'openai',
         name: 'GPT Image 2',
         modelId: 'gpt-image-2',
-        apiKey: 'gpt-image-key',
+        apiKey: 'system-key',
         baseUrl: 'https://st.smart-agi.com',
         builtinPreset: 'gpt-image-2',
         maxRefImages: 16,
@@ -58,7 +54,7 @@ describe('applyTwinkleModelKeys', () => {
         protocol: 'google',
         name: 'Banana Pro',
         modelId: 'gemini-3-pro-image-preview',
-        apiKey: 'banana-key',
+        apiKey: 'system-key',
         baseUrl: 'https://st.smart-agi.com',
         builtinPreset: 'gemini-3-pro-image-preview',
         maxRefImages: 14,
@@ -70,7 +66,7 @@ describe('applyTwinkleModelKeys', () => {
       protocol: 'openai-responses',
       name: 'gpt-5.5',
       modelId: 'gpt-5.5',
-      apiKey: 'text-key',
+      apiKey: 'system-key',
       baseUrl: 'https://st.smart-agi.com',
       note: 'OpenAI Response',
     });

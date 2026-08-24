@@ -1,9 +1,6 @@
 const TWINKLE_MODEL_API_BASE_URL = 'https://big-model.smart-agi.com/api/v1';
-const TWINKLE_MODEL_KEY_NAMES = Object.freeze({
-  text: '【文本】GPT Pro20 默认分组',
-  gptImage2: '【图片】GPT Image2 默认分组',
-  bananaPro: '【图片】Gemini Banana 默认分组',
-});
+const TWINKLE_MODEL_KEY_NAME = '系统默认密钥';
+const TWINKLE_MODEL_REQUEST_TIMEOUT_MS = 15_000;
 
 function createTwinkleApiError(statusCode, message, code = 'TWINKLE_MODEL_REQUEST_FAILED') {
   const error = new Error(message);
@@ -18,15 +15,28 @@ function getUpstreamErrorMessage(payload, fallback) {
 }
 
 async function requestTwinkleModel(pathname, options = {}, fetchImpl = fetch) {
-  const response = await fetchImpl(`${TWINKLE_MODEL_API_BASE_URL}${pathname}`, {
-    method: options.method || 'GET',
-    headers: {
-      'Accept': 'application/json',
-      ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      ...(options.accessToken ? { Authorization: `Bearer ${options.accessToken}` } : {}),
-    },
-    ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TWINKLE_MODEL_REQUEST_TIMEOUT_MS);
+  let response;
+  try {
+    response = await fetchImpl(`${TWINKLE_MODEL_API_BASE_URL}${pathname}`, {
+      method: options.method || 'GET',
+      headers: {
+        'Accept': 'application/json',
+        ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...(options.accessToken ? { Authorization: `Bearer ${options.accessToken}` } : {}),
+      },
+      ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw createTwinkleApiError(504, 'Twinkle Model 请求超时，请稍后重试', 'TWINKLE_MODEL_TIMEOUT');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   let payload = null;
   try {
@@ -59,41 +69,35 @@ async function requestTwinkleModel(pathname, options = {}, fetchImpl = fetch) {
 
 function selectTwinkleDefaultApiKeys(apiKeys) {
   const items = Array.isArray(apiKeys) ? apiKeys : [];
-  const selected = {};
-  const missingNames = [];
+  const matches = items.filter(item => item && item.name === TWINKLE_MODEL_KEY_NAME && typeof item.key === 'string' && item.key.trim());
+  const match = matches.find(item => item.status === 'active') || matches[0];
 
-  for (const [slot, requiredName] of Object.entries(TWINKLE_MODEL_KEY_NAMES)) {
-    const matches = items.filter(item => item && item.name === requiredName && typeof item.key === 'string' && item.key.trim());
-    const match = matches.find(item => item.status === 'active') || matches[0];
-    if (match) {
-      selected[slot] = match.key.trim();
-    } else {
-      missingNames.push(requiredName);
-    }
+  if (!match) {
+    return { key: undefined, missingName: TWINKLE_MODEL_KEY_NAME };
   }
 
-  return { keys: selected, missingNames };
+  return { key: match.key.trim(), missingName: undefined };
 }
 
 async function listAllTwinkleApiKeys(accessToken, fetchImpl = fetch) {
-  const items = [];
-  let page = 1;
-  let pages = 1;
-
-  while (page <= pages) {
+  const requestPage = async page => {
     const query = new URLSearchParams({
       page: String(page),
       page_size: '100',
       sort_by: 'sort_order',
       sort_order: 'asc',
     });
-    const result = await requestTwinkleModel(`/keys?${query}`, { accessToken }, fetchImpl);
-    if (Array.isArray(result?.items)) items.push(...result.items);
-    pages = Math.min(10, Math.max(1, Number(result?.pages) || 1));
-    page += 1;
-  }
+    return requestTwinkleModel(`/keys?${query}`, { accessToken }, fetchImpl);
+  };
 
-  return items;
+  const firstPage = await requestPage(1);
+  const pages = Math.min(10, Math.max(1, Number(firstPage?.pages) || 1));
+  const pageResults = await Promise.all([
+    firstPage,
+    ...Array.from({ length: pages - 1 }, (_, index) => requestPage(index + 2)),
+  ]);
+
+  return pageResults.flatMap(result => Array.isArray(result?.items) ? result.items : []);
 }
 
 async function loginToTwinkleModel(email, password, fetchImpl = fetch) {
@@ -126,7 +130,7 @@ async function logoutTwinkleModelSession(refreshToken, fetchImpl = fetch) {
 
 module.exports = {
   TWINKLE_MODEL_API_BASE_URL,
-  TWINKLE_MODEL_KEY_NAMES,
+  TWINKLE_MODEL_KEY_NAME,
   completeTwinkleModel2FA,
   listAllTwinkleApiKeys,
   loginToTwinkleModel,

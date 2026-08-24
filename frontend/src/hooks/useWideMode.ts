@@ -36,11 +36,6 @@ function viewportAllowsWide(): boolean {
   return window.innerWidth >= WIDE_MODE_MIN_WIDTH;
 }
 
-function dismissBootLoader(): void {
-  const el = document.getElementById('app-boot-loader');
-  if (el) el.remove();
-}
-
 /** 将宽度模式状态同步到 <html> 属性，确保 CSS 选择器始终有效 */
 function syncHtmlAttribute(enabled: boolean): void {
   if (typeof document === 'undefined') return;
@@ -54,9 +49,8 @@ function syncHtmlAttribute(enabled: boolean): void {
 export function useWideMode() {
   // 初始渲染必须与静态导出 HTML 一致（wideMode=false），否则 wide-mode-init 内联脚本
   // 设置的 html[data-wide-mode] 会让客户端首屏读到 true，与构建期 HTML 不符而触发
-  // React #418 文本水合错误。真实值在挂载后的 effect 中读取；期间由 #app-boot-loader 遮罩覆盖。
+  // React #418 文本水合错误。真实值在挂载后的 effect 中读取。
   const [wideMode, setWideModeState] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,8 +64,6 @@ export function useWideMode() {
         // 在窄视口下加载时同样自动关闭，避免出现重复 Header 的坏状态。
         writeStoredWideMode(false);
       }
-      setMounted(true);
-      dismissBootLoader();
     });
 
     return () => {
@@ -123,7 +115,6 @@ export function useWideMode() {
 
   return {
     wideMode,
-    mounted,
     setWideMode,
     toggleWideMode,
   };

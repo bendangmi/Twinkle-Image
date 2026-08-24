@@ -358,7 +358,7 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
         textModels,
         defaults,
         generationSettings,
-      }, result.keys);
+      }, result.key);
       saveTwinkleModelSession(result.session);
       saveRegistry(nextRegistry);
       syncDynamicModelExports();
@@ -372,7 +372,7 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
       setTwinkle2FA(null);
       setTwinkleTotpCode('');
       onApiKeyChange?.(hasAnyApiKey());
-      setSuccess('已从 Twinkle Model 拉取默认密钥并完成三个模型的配置');
+      setSuccess('已从 Twinkle Model 拉取系统默认密钥并完成三个模型的配置');
       setModelStatuses(null);
       setModelCheckError(null);
     } catch (err) {
@@ -563,7 +563,7 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
                   </div>
                   <div className="min-w-0">
                     <p className="font-medium">Twinkle Model</p>
-                    <p className="text-xs text-muted-foreground">登录后自动配置 GPT Image 2、Banana Pro 和 gpt-5.5。</p>
+                    <p className="text-xs text-muted-foreground">登录后读取“系统默认密钥”，统一配置 GPT Image 2、Banana Pro 和 gpt-5.5。</p>
                   </div>
                 </div>
                 <a

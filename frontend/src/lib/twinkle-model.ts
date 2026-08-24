@@ -9,11 +9,8 @@ import {
 
 export const TWINKLE_MODEL_ACCOUNT_URL = 'https://big-model.smart-agi.com';
 export const TWINKLE_MODEL_REQUEST_BASE_URL = 'https://st.smart-agi.com';
-export const TWINKLE_MODEL_KEY_NAMES = {
-  text: '【文本】GPT Pro20 默认分组',
-  gptImage2: '【图片】GPT Image2 默认分组',
-  bananaPro: '【图片】Gemini Banana 默认分组',
-} as const;
+export const TWINKLE_MODEL_KEY_NAME = '系统默认密钥';
+const TWINKLE_MODEL_PROXY_TIMEOUT_MS = 20_000;
 
 const SESSION_STORAGE_KEY = 'twinkle-model-session';
 const GPT_IMAGE_MODEL_ID = 'default-gpt-image-2';
@@ -49,15 +46,11 @@ export interface TwinkleModelLogin2FAChallenge {
   userEmailMasked: string;
 }
 
-export interface TwinkleModelDefaultKeys {
-  text: string;
-  gptImage2: string;
-  bananaPro: string;
-}
+export type TwinkleModelDefaultKey = string;
 
 interface TwinkleModelKeysResponse {
-  keys?: Partial<TwinkleModelDefaultKeys>;
-  missingNames?: string[];
+  key?: string;
+  missingName?: string;
 }
 
 interface TwinkleModelRefreshResponse {
@@ -68,7 +61,7 @@ interface TwinkleModelRefreshResponse {
 
 interface TwinkleFetchKeysResult {
   session: TwinkleModelSession;
-  keys: TwinkleModelDefaultKeys;
+  key: TwinkleModelDefaultKey;
 }
 
 class TwinkleModelRequestError extends Error {
@@ -84,11 +77,24 @@ class TwinkleModelRequestError extends Error {
 }
 
 async function requestTwinkleProxy<T>(pathname: string, body: Record<string, unknown>): Promise<T> {
-  const response = await fetch(`/api/nova/twinkle-model/${pathname}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), TWINKLE_MODEL_PROXY_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(`/api/nova/twinkle-model/${pathname}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException || (error && typeof error === 'object' && 'name' in error && error.name === 'AbortError')) {
+      throw new TwinkleModelRequestError('Twinkle Model 请求超时，请检查网络后重试', 504, 'TWINKLE_MODEL_TIMEOUT');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
   let payload: Record<string, unknown> = {};
   try {
     payload = await response.json() as Record<string, unknown>;
@@ -190,18 +196,11 @@ async function refreshSession(session: TwinkleModelSession): Promise<TwinkleMode
   return next;
 }
 
-function assertCompleteKeys(response: TwinkleModelKeysResponse): TwinkleModelDefaultKeys {
-  const missingNames = Array.isArray(response.missingNames) ? response.missingNames : [];
-  const keys = response.keys || {};
-  if (missingNames.length > 0 || !keys.text || !keys.gptImage2 || !keys.bananaPro) {
-    const names = missingNames.length > 0
-      ? missingNames
-      : Object.entries(TWINKLE_MODEL_KEY_NAMES)
-          .filter(([slot]) => !keys[slot as keyof TwinkleModelDefaultKeys])
-          .map(([, name]) => name);
-    throw new Error(`账户中缺少默认 API 密钥：${names.join('、')}`);
+function assertCompleteKey(response: TwinkleModelKeysResponse): TwinkleModelDefaultKey {
+  if (!response.key) {
+    throw new Error(`账户中缺少默认 API 密钥：${response.missingName || TWINKLE_MODEL_KEY_NAME}`);
   }
-  return keys as TwinkleModelDefaultKeys;
+  return response.key;
 }
 
 export async function fetchTwinkleModelDefaultKeys(
@@ -216,14 +215,14 @@ export async function fetchTwinkleModelDefaultKeys(
     const response = await requestTwinkleProxy<TwinkleModelKeysResponse>('keys', {
       accessToken: session.accessToken,
     });
-    return { session, keys: assertCompleteKeys(response) };
+    return { session, key: assertCompleteKey(response) };
   } catch (error) {
     if (!(error instanceof TwinkleModelRequestError) || error.status !== 401 || !session.refreshToken) throw error;
     session = await refreshSession(session);
     const response = await requestTwinkleProxy<TwinkleModelKeysResponse>('keys', {
       accessToken: session.accessToken,
     });
-    return { session, keys: assertCompleteKeys(response) };
+    return { session, key: assertCompleteKey(response) };
   }
 }
 
@@ -285,11 +284,11 @@ function upsertTextModel(models: TextModelConfig[], apiKey: string): { model: Te
 
 export function applyTwinkleModelKeys(
   registry: NovaModelRegistry,
-  keys: TwinkleModelDefaultKeys,
+  key: TwinkleModelDefaultKey,
 ): NovaModelRegistry {
-  const gptImage = upsertImageModel(registry.imageModels, GPT_IMAGE_MODEL_ID, 'gpt-image-2', keys.gptImage2);
-  const banana = upsertImageModel(gptImage.remaining, BANANA_PRO_MODEL_ID, 'gemini-3-pro-image-preview', keys.bananaPro);
-  const text = upsertTextModel(registry.textModels, keys.text);
+  const gptImage = upsertImageModel(registry.imageModels, GPT_IMAGE_MODEL_ID, 'gpt-image-2', key);
+  const banana = upsertImageModel(gptImage.remaining, BANANA_PRO_MODEL_ID, 'gemini-3-pro-image-preview', key);
+  const text = upsertTextModel(registry.textModels, key);
 
   return {
     ...registry,

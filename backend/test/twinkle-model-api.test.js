@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
-  TWINKLE_MODEL_KEY_NAMES,
+  TWINKLE_MODEL_KEY_NAME,
   listAllTwinkleApiKeys,
   selectTwinkleDefaultApiKeys,
 } = require('../twinkle-model-api');
@@ -15,30 +15,25 @@ function jsonResponse(payload, status = 200) {
   };
 }
 
-test('selectTwinkleDefaultApiKeys selects named active default keys', () => {
+test('selectTwinkleDefaultApiKeys selects the active system default key', () => {
   const result = selectTwinkleDefaultApiKeys([
-    { name: TWINKLE_MODEL_KEY_NAMES.text, key: 'text-inactive', status: 'inactive' },
-    { name: TWINKLE_MODEL_KEY_NAMES.text, key: 'text-active', status: 'active' },
-    { name: TWINKLE_MODEL_KEY_NAMES.gptImage2, key: 'image-key', status: 'active' },
-    { name: TWINKLE_MODEL_KEY_NAMES.bananaPro, key: 'banana-key', status: 'active' },
+    { name: TWINKLE_MODEL_KEY_NAME, key: 'inactive-key', status: 'inactive' },
+    { name: TWINKLE_MODEL_KEY_NAME, key: 'system-key', status: 'active' },
   ]);
 
   assert.deepEqual(result, {
-    keys: { text: 'text-active', gptImage2: 'image-key', bananaPro: 'banana-key' },
-    missingNames: [],
+    key: 'system-key',
+    missingName: undefined,
   });
 });
 
-test('selectTwinkleDefaultApiKeys reports the exact missing default names', () => {
+test('selectTwinkleDefaultApiKeys reports the missing system default name', () => {
   const result = selectTwinkleDefaultApiKeys([
-    { name: TWINKLE_MODEL_KEY_NAMES.text, key: 'text-key', status: 'active' },
+    { name: '旧密钥名称', key: 'old-key', status: 'active' },
   ]);
 
-  assert.equal(result.keys.text, 'text-key');
-  assert.deepEqual(result.missingNames, [
-    TWINKLE_MODEL_KEY_NAMES.gptImage2,
-    TWINKLE_MODEL_KEY_NAMES.bananaPro,
-  ]);
+  assert.equal(result.key, undefined);
+  assert.equal(result.missingName, TWINKLE_MODEL_KEY_NAME);
 });
 
 test('listAllTwinkleApiKeys follows paginated API key responses', async () => {
@@ -59,4 +54,15 @@ test('listAllTwinkleApiKeys follows paginated API key responses', async () => {
   assert.deepEqual(result, [{ id: 1 }, { id: 2 }]);
   assert.equal(requestedUrls.length, 2);
   assert.equal(requestedUrls[0].options.headers.Authorization, 'Bearer access-token');
+});
+
+test('requestTwinkleModel aborts a stalled upstream request', async () => {
+  const { requestTwinkleModel } = require('../twinkle-model-api');
+  const error = new Error('aborted');
+  error.name = 'AbortError';
+
+  await assert.rejects(
+    requestTwinkleModel('/keys', {}, async () => { throw error; }),
+    result => result.code === 'TWINKLE_MODEL_TIMEOUT' && result.statusCode === 504,
+  );
 });

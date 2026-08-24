@@ -32,8 +32,17 @@ export function hasAnyApiKey(): boolean {
 
 export function loadJsonFromStorage<T>(key: string): Partial<T> {
   if (typeof window === 'undefined') return {};
-  const raw = localStorage.getItem(key);
-  return raw ? JSON.parse(raw) : {};
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Partial<T>
+      : {};
+  } catch {
+    // Ignore corrupt settings so one bad preference cannot break the whole workspace.
+    return {};
+  }
 }
 
 export function saveJsonToStorage<T>(key: string, value: T): void {

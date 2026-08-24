@@ -4,7 +4,7 @@
 
 **自托管的 AI 图像生成工作台 · 自定义模型 · 多模式 · PWA · 实时任务**
 
-[![Version](https://img.shields.io/badge/version-v3.1.8-blue.svg)](https://github.com)
+[![Version](https://img.shields.io/badge/version-v3.1.9-blue.svg)](https://github.com)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org)
@@ -24,7 +24,7 @@ Twinkle Image 是一个面向个人/团队的 AI 图像生成工作台。前端�
 - 所有配置存储在浏览器 localStorage
 - 文字模型支持 Google（generateContent）和 OpenAI（Response 协议）
 
-> 当前版本：**v3.1.8**
+> 当前版本：**v3.1.9**
 
 ## 💎 赞助商
 
@@ -342,6 +342,8 @@ npm run go
 <details>
 <summary><strong>💻 本地开发</strong></summary>
 
+> 前后端分离、可自定义端口、端口被占用时的切换方法，详见根目录 [`LOCAL-DEVELOPMENT.md`](LOCAL-DEVELOPMENT.md)。
+
 ### 环境要求
 
 - **Node.js**：20 或 22
@@ -414,7 +416,7 @@ powershell -ExecutionPolicy Bypass -File .\deploy\build-image.ps1 -NoVersionBump
 
 完整步骤见 [`deploy/DEPLOY.md`](deploy/DEPLOY.md)。本地执行
 `deploy/build-image.ps1` 会生成带版本号的
-`deploy/twinkle-image-3.1.8.tar`，可上传服务器后通过 `docker load` 导入。
+`deploy/twinkle-image-3.1.9.tar`，可上传服务器后通过 `docker load` 导入。
 
 </details>
 

@@ -39,7 +39,11 @@ function isWebSocketSupported(): boolean {
 function buildSocketUrl(): string | null {
   if (typeof window === 'undefined') return null;
   try {
-    const url = new URL('/api/nova/ws', window.location.href);
+    const configuredBackendUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.trim();
+    const url = new URL(
+      '/api/nova/ws',
+      configuredBackendUrl ? `${configuredBackendUrl.replace(/\/+$/, '')}/` : window.location.href,
+    );
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
     return url.toString();
   } catch {
