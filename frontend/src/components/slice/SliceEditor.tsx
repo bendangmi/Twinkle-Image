@@ -83,6 +83,7 @@ import {
 } from '@/lib/slice-geometry';
 import { forgetCropVersion, recropAsset, renderThumbnailBlob } from '@/lib/slice-crop';
 import { createRepairedPreviewBlob } from '@/lib/slice-repair';
+import { useModelRegistryVersion } from '@/hooks/useModelRegistry';
 
 import {
   selectCanRedo,
@@ -269,6 +270,7 @@ function handlePosition(h: ResizeHandle): React.CSSProperties {
  * - 子弹窗：设置抽屉 / AI 补齐编辑器 / 背景确认弹窗
  */
 export function SliceEditor({ onConfigureApiKey, showToast, onTaskStateChange }: SliceEditorProps) {
+  useModelRegistryVersion();
   const activeWorkspace = useSliceStore((s) => s.activeWorkspace);
   const commit = useSliceStore((s) => s.commit);
   const mergeCommit = useSliceStore((s) => s.mergeCommit);

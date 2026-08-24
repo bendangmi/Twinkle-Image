@@ -39,6 +39,7 @@ import {
 
 import { MAX_UPLOAD_SIZE_BYTES } from '@/lib/constants';
 import { useGifWorkflow } from '@/hooks/useGifWorkflow';
+import { useModelRegistryVersion } from '@/hooks/useModelRegistry';
 import type { ImageActionPayload } from '@/lib/image-actions';
 import { getDefaultConfiguredTextModel } from '@/lib/model-endpoints';
 
@@ -66,7 +67,8 @@ interface PersistedSettings {
 
 export function GifGenerationWorkspace({ wideMode = false, hasApiKey, onConfigureApiKey, onError, showToast }: GifGenerationWorkspaceProps) {
   const workflow = useGifWorkflow();
-  const gifModelOptions = useMemo(() => getGifCompatibleModels(), []);
+  const registryVersion = useModelRegistryVersion();
+  const gifModelOptions = useMemo(() => getGifCompatibleModels(), [registryVersion]);
 
   const [prompt, setPrompt] = useState('');
   const [model, setModel] = useState<GifModel>(getDefaultGifModelId());

@@ -13,6 +13,7 @@ import { Check } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { listSliceImageModels, type SliceImageModel } from '@/lib/slice-model-config';
+import { useModelRegistryVersion } from '@/hooks/useModelRegistry';
 
 interface SliceImageModelPickerProps {
   /** 当前选中的 registry 条目 id */
@@ -22,6 +23,7 @@ interface SliceImageModelPickerProps {
 }
 
 export function SliceImageModelPicker({ value, onSelect, className }: SliceImageModelPickerProps) {
+  useModelRegistryVersion();
   const models = listSliceImageModels();
 
   if (models.length === 0) {

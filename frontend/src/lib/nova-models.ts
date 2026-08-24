@@ -97,6 +97,7 @@ export interface NovaModelRegistry {
 }
 
 const REGISTRY_KEY = 'nova-model-registry';
+export const MODEL_REGISTRY_UPDATED_EVENT = 'nova-model-registry-updated';
 const SMART_AGI_BASE_URL = 'https://st.smart-agi.com';
 const DEFAULT_IMAGE_MODEL_ID = 'default-gpt-image-2';
 const DEFAULT_BANANA_PRO_MODEL_ID = 'default-banana-pro';
@@ -472,6 +473,7 @@ export function saveRegistry(registry: NovaModelRegistry): void {
   };
 
   localStorage.setItem(REGISTRY_KEY, JSON.stringify(normalized));
+  queueMicrotask(() => window.dispatchEvent(new Event(MODEL_REGISTRY_UPDATED_EVENT)));
 }
 
 export function getImageModelById(registry: NovaModelRegistry, id: string): ImageModelConfig | undefined {

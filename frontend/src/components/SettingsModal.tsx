@@ -339,7 +339,6 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
 
     saveRegistry(registry);
     syncDynamicModelExports();
-    window.dispatchEvent(new Event('nova-model-registry-updated'));
     onApiKeyChange?.(hasAnyApiKey());
     setSuccess('设置已保存');
     setError(null);
@@ -372,7 +371,6 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
       setTwinklePassword('');
       setTwinkle2FA(null);
       setTwinkleTotpCode('');
-      window.dispatchEvent(new Event('nova-model-registry-updated'));
       onApiKeyChange?.(hasAnyApiKey());
       setSuccess('已从 Twinkle Model 拉取默认密钥并完成三个模型的配置');
       setModelStatuses(null);

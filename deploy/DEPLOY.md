@@ -1,6 +1,6 @@
 # Twinkle Image 离线 Docker 部署
 
-当前镜像版本：`3.1.7-fix.1`
+当前镜像版本：`3.1.8`
 
 ## 1. 在开发机生成离线镜像
 
@@ -27,13 +27,13 @@ powershell -ExecutionPolicy Bypass -File .\deploy\build-image.ps1 -NoVersionBump
 也可以显式指定版本：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\deploy\build-image.ps1 -Version 3.1.7-fix.1
+powershell -ExecutionPolicy Bypass -File .\deploy\build-image.ps1 -Version 3.1.8
 ```
 
 脚本会生成：
 
-- `deploy/twinkle-image-3.1.7-fix.1.tar`
-- `deploy/twinkle-image-3.1.7-fix.1.tar.sha256`
+- `deploy/twinkle-image-3.1.8.tar`
+- `deploy/twinkle-image-3.1.8.tar.sha256`
 
 tar 文件体积较大，已被 Git 忽略，不会推送到 GitHub。
 
@@ -42,8 +42,8 @@ tar 文件体积较大，已被 Git 忽略，不会推送到 GitHub。
 将以下内容上传到服务器同一目录，例如 `/opt/twinkle-image`：
 
 ```text
-twinkle-image-3.1.7-fix.1.tar
-twinkle-image-3.1.7-fix.1.tar.sha256
+twinkle-image-3.1.8.tar
+twinkle-image-3.1.8.tar.sha256
 docker-compose.yaml
 .env
 config/blacklist.json
@@ -57,13 +57,13 @@ config/prompts.json
 
 ```bash
 cd /opt/twinkle-image
-sha256sum -c twinkle-image-3.1.7-fix.1.tar.sha256
-docker load -i twinkle-image-3.1.7-fix.1.tar
-docker image inspect twinkle-image:3.1.7-fix.1 --format '{{.Id}} {{index .Config.Labels "org.opencontainers.image.version"}}'
+sha256sum -c twinkle-image-3.1.8.tar.sha256
+docker load -i twinkle-image-3.1.8.tar
+docker image inspect twinkle-image:3.1.8 --format '{{.Id}} {{index .Config.Labels "org.opencontainers.image.version"}}'
 ```
 
 `docker load` 导入后，Compose 的 `image:` 应填写镜像标签
-`twinkle-image:3.1.7-fix.1`，不是 tar 文件名。
+`twinkle-image:3.1.8`，不是 tar 文件名。
 
 ## 4. 启动
 

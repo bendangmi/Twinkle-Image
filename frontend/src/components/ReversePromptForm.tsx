@@ -44,6 +44,7 @@ import {
 
 import { MAX_UPLOAD_SIZE_BYTES } from '@/lib/constants';
 import { loadJsonFromStorage, saveJsonToStorage } from '@/lib/settings-storage';
+import { useModelRegistryVersion } from '@/hooks/useModelRegistry';
 
 const REVERSE_SETTINGS_KEY = 'nova-reverse-prompt-settings';
 
@@ -102,6 +103,7 @@ export function ReversePromptForm({ wideMode = false, disabled = false, onConfig
   const [missingApiKeyDialogOpen, setMissingApiKeyDialogOpen] = useState(false);
   const [modelPopoverOpen, setModelPopoverOpen] = useState(false);
   const [modePopoverOpen, setModePopoverOpen] = useState(false);
+  const registryVersion = useModelRegistryVersion();
 
   const streamHandleRef = useRef<StreamReverseHandle | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
@@ -157,6 +159,19 @@ export function ReversePromptForm({ wideMode = false, disabled = false, onConfig
   }, []);
 
   // 设置变化时持久化
+  useEffect(() => {
+    if (!registryVersion) return;
+    let cancelled = false;
+    const fallbackModel = getDefaultReversePromptModelId();
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setModel((current) => (getConfiguredTextModel(current) ? current : fallbackModel));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [registryVersion]);
+
   useEffect(() => {
     if (!settingsReady) return;
     saveJsonToStorage(REVERSE_SETTINGS_KEY, { model, mode });

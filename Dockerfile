@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY package.json ./
 COPY frontend/package.json frontend/package-lock.json ./frontend/
-RUN cd frontend && npm ci
+RUN cd frontend && npm_config_registry=https://registry.npmmirror.com npm ci --fetch-retries=5 --fetch-retry-factor=2 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=120000
 
 COPY frontend/ ./frontend/
 RUN cd frontend && npm run build
@@ -22,13 +22,13 @@ RUN sed -i "s|deb.debian.org|${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.
 
 COPY backend/package.json backend/package-lock.json ./
 
-RUN npm ci --omit=dev
+RUN npm_config_registry=https://registry.npmmirror.com npm_config_nodedir=/usr/local npm ci --omit=dev --fetch-retries=5 --fetch-retry-factor=2 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=120000
 
 FROM node:22-slim AS production
 
 WORKDIR /app
 
-ARG APP_VERSION=3.1.7-fix.1
+ARG APP_VERSION=3.1.8
 
 LABEL org.opencontainers.image.title="Twinkle Image" \
       org.opencontainers.image.description="AI image generation workspace" \
