@@ -265,15 +265,17 @@ function upsertImageModel(
 
 function upsertTextModel(models: TextModelConfig[], apiKey: string): { model: TextModelConfig; remaining: TextModelConfig[] } {
   const existingIndex = models.findIndex(model => model.id === GPT_TEXT_MODEL_ID || (
-    model.protocol === 'openai-responses' && model.modelId === 'gpt-5.5'
+    model.protocol === 'openai-responses' && (
+      model.modelId === 'gpt-5.5' || model.modelId === 'gpt-5.6-sol'
+    )
   ));
   const existing = existingIndex >= 0 ? models[existingIndex] : null;
   return {
     model: {
       id: existing?.id || GPT_TEXT_MODEL_ID,
       protocol: 'openai-responses',
-      name: 'gpt-5.5',
-      modelId: 'gpt-5.5',
+      name: 'gpt-5.6-sol',
+      modelId: 'gpt-5.6-sol',
       apiKey,
       baseUrl: TWINKLE_MODEL_REQUEST_BASE_URL,
       note: 'OpenAI Response',

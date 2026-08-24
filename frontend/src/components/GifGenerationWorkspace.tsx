@@ -67,8 +67,14 @@ interface PersistedSettings {
 
 export function GifGenerationWorkspace({ wideMode = false, hasApiKey, onConfigureApiKey, onError, showToast }: GifGenerationWorkspaceProps) {
   const workflow = useGifWorkflow();
-  useModelRegistryVersion();
-  const gifModelOptions = getGifCompatibleModels();
+  const registryVersion = useModelRegistryVersion();
+  // The registry helper returns a fresh array on every call. Keep the options
+  // stable between registry updates so the initialization effect below cannot
+  // enqueue a state update on every render.
+  const gifModelOptions = useMemo(() => {
+    void registryVersion;
+    return getGifCompatibleModels();
+  }, [registryVersion]);
 
   const [prompt, setPrompt] = useState('');
   const [model, setModel] = useState<GifModel>(getDefaultGifModelId());

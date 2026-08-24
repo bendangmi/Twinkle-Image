@@ -64,8 +64,8 @@ describe('applyTwinkleModelKeys', () => {
     ]);
     expect(configured.textModels[0]).toMatchObject({
       protocol: 'openai-responses',
-      name: 'gpt-5.5',
-      modelId: 'gpt-5.5',
+      name: 'gpt-5.6-sol',
+      modelId: 'gpt-5.6-sol',
       apiKey: 'system-key',
       baseUrl: 'https://st.smart-agi.com',
       note: 'OpenAI Response',
