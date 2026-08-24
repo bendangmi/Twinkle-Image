@@ -67,8 +67,8 @@ interface PersistedSettings {
 
 export function GifGenerationWorkspace({ wideMode = false, hasApiKey, onConfigureApiKey, onError, showToast }: GifGenerationWorkspaceProps) {
   const workflow = useGifWorkflow();
-  const registryVersion = useModelRegistryVersion();
-  const gifModelOptions = useMemo(() => getGifCompatibleModels(), [registryVersion]);
+  useModelRegistryVersion();
+  const gifModelOptions = getGifCompatibleModels();
 
   const [prompt, setPrompt] = useState('');
   const [model, setModel] = useState<GifModel>(getDefaultGifModelId());
