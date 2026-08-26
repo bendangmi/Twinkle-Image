@@ -2,7 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { chromium } = require("playwright");
 
-const baseUrl = "http://127.0.0.1:3100";
+const baseUrl = "http://127.0.0.1:46311/studio";
 const results = path.resolve(__dirname, "..", "test-results");
 fs.mkdirSync(results, { recursive: true });
 

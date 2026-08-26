@@ -1,9 +1,9 @@
 services:
   twinkle-image:
-    image: twinkle-image:3.1.10
+    image: twinkle-image:3.1.11
     container_name: twinkle-image
     ports:
-      - "${TWINKLE_PORT:-3002}:3000"
+      - "${TWINKLE_PORT:-46311}:3000"
     environment:
       NODE_ENV: production
       HOSTNAME: 0.0.0.0

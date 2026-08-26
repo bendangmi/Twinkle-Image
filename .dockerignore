@@ -8,6 +8,7 @@
 .idea/
 .codex/
 .agents/
+.codegraph/
 .codex-merge-backup/
 data/
 deploy/*.tar

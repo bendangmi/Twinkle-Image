@@ -116,7 +116,7 @@ function hashPromptGalleryPassword(password) {
     .digest('hex');
 }
 
-const PORT = Number(process.env.PORT || 3000);
+const PORT = Number(process.env.PORT || 46312);
 const HOSTNAME = process.env.HOSTNAME || '0.0.0.0';
 const DB_PATH = process.env.NOVA_TASK_DB || path.join(__dirname, 'nova-tasks.sqlite');
 const TASK_TTL_MS = (Number(process.env.NOVA_TASK_TTL_HOURS) || 12) * 60 * 60 * 1000;
@@ -141,8 +141,16 @@ const STATIC_DIR = path.join(__dirname, '..', 'frontend', 'out');
 const IMAGE_DIR = process.env.NOVA_IMAGE_DIR || path.join(__dirname, 'nova-images');
 const taskRefImages = new Map();
 
+function ensureDatabaseDir() {
+  const databaseDir = path.dirname(DB_PATH);
+  if (!fs.existsSync(databaseDir)) {
+    fs.mkdirSync(databaseDir, { recursive: true });
+  }
+}
+
 const app = IS_DEV ? next({ dev: IS_DEV, hostname: HOSTNAME, port: PORT, dir: path.join(__dirname, '..', 'frontend') }) : null;
 const handle = app ? app.getRequestHandler() : null;
+ensureDatabaseDir();
 const db = new Database(DB_PATH);
 const apiKeys = new Map();
 const taskSources = new Map(); // taskId -> { ip, apiKeyHash }

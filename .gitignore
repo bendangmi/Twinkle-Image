@@ -38,6 +38,7 @@ backend/ccode-images/
 .trae/
 .codex/
 .agents/
+.codegraph/
 /docs/
 
 data/

@@ -106,6 +106,8 @@ try {
     Update-Text $versionPath $currentVersion $targetVersion
     Update-Text (Join-Path $deployDir 'DEPLOY.md') $currentVersion $targetVersion
     Update-Text (Join-Path $rootDir 'README.md') $currentVersion $targetVersion
+    Update-Text (Join-Path $rootDir 'README_ZH_CN.md') $currentVersion $targetVersion
+    Update-Text (Join-Path $rootDir '本地启动与镜像打包教程.md') $currentVersion $targetVersion
   }
 
   Write-Host "Version:  $currentVersion -> $targetVersion"

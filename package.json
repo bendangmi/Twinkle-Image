@@ -1,10 +1,10 @@
 {
   "name": "twinkle-image",
-  "version": "3.1.10",
+  "version": "3.1.11",
   "private": true,
   "description": "Twinkle Image - AI 图像生成工作台",
   "scripts": {
-    "dev": "cd frontend && npm run build && cd ../backend && cross-env NODE_ENV=production node server.js",
+    "dev": "npm --prefix frontend run dev --",
     "dev:old": "cd ../backend && cross-env NODE_ENV=production node server.js",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",

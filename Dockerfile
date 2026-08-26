@@ -28,7 +28,7 @@ FROM node:22-slim AS production
 
 WORKDIR /app
 
-ARG APP_VERSION=3.1.10
+ARG APP_VERSION=3.1.11
 
 LABEL org.opencontainers.image.title="Twinkle Image" \
       org.opencontainers.image.description="AI image generation workspace" \

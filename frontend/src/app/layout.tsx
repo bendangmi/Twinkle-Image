@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import Script from "next/script";
 import { ServiceWorkerManager } from "@/components/ServiceWorkerManager";
 import "./globals.css";
 
@@ -31,9 +30,9 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <head>
-        <Script
+        <script
           id="theme-init"
-          strategy="beforeInteractive"
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
@@ -51,9 +50,9 @@ export default function RootLayout({
             `,
           }}
         />
-        <Script
+        <script
           id="wide-mode-init"
-          strategy="beforeInteractive"
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{
             __html: `
               (function() {

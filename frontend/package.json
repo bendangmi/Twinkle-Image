@@ -1,10 +1,10 @@
 {
   "name": "twinkle-image-frontend",
-  "version": "3.1.10",
+  "version": "3.1.11",
   "private": true,
   "description": "Twinkle Image 前端 - Next.js 应用",
   "scripts": {
-    "dev": "next dev --webpack",
+    "dev": "next dev --webpack --hostname 127.0.0.1 --port 46311",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
