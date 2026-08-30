@@ -21,8 +21,7 @@ export function PluginEmptyState({ registry }: { registry: PluginRegistrySnapsho
         <div className="space-y-1">
           <h3 className="text-sm font-semibold text-foreground">还没有安装视频插件</h3>
           <p className="text-xs leading-relaxed text-muted-foreground">
-            开源版不内置任何视频上游协议。视频能力由插件包提供——
-            由管理员把插件目录放进服务器上的插件文件夹，重启后即可使用。
+            视频能力由插件包提供，安装与卸载插件需要管理员在服务器上操作插件目录。重启后即可使用。
           </p>
         </div>
 

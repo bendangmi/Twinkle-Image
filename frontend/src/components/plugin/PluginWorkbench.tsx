@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Loader2, PackageOpen, RotateCcw, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { SchemaToolbar, SchemaIcon } from '@/components/plugin/SchemaToolbar';
@@ -477,12 +478,22 @@ function PluginForm({
           </div>
         )}
 
-        {/* 文本字段。宽屏下主提示词吃掉剩余高度 */}
+        {/* 文本与开关字段。宽屏下主提示词吃掉剩余高度 */}
         {body.map(key => {
           const field = findField(schema, key);
           if (!field || field.type === 'media') return null;
-          if (field.type !== 'text' && field.type !== 'textarea') return null;
+          if (field.type !== 'text' && field.type !== 'textarea' && field.type !== 'switch') return null;
           if (!isFieldVisible(field, buildScope(facets, fields))) return null;
+          if (field.type === 'switch') {
+            return (
+              <SwitchFieldControl
+                key={field.key}
+                field={field}
+                value={fields[field.key] === true}
+                onChange={value => handleFieldChange(field.key, value)}
+              />
+            );
+          }
           const isPrompt = promptField?.key === field.key;
           return (
             <TextFieldControl
@@ -497,10 +508,15 @@ function PluginForm({
 
         {/* 提交栏 */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-3">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>预估计费：</span>
-            {model && <PluginTotalPrice plugin={plugin} modelId={model} cost={cost} />}
-          </div>
+          {/* 插件没申报价格时整行不出现，留一个「预估计费：」空标签更像故障 */}
+          {model && cost !== null ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>预估计费：</span>
+              <PluginTotalPrice plugin={plugin} modelId={model} cost={cost} />
+            </div>
+          ) : (
+            <span />
+          )}
 
           <Button
             type="button"
@@ -530,6 +546,32 @@ function PluginForm({
           {model && <span className="ml-1 font-mono opacity-70">({model})</span>}
         </p>
       </div>
+    </div>
+  );
+}
+
+/** 布尔开关字段。提交时始终带上 true/false，不因为是 false 就被丢弃。 */
+function SwitchFieldControl({
+  field,
+  value,
+  onChange,
+}: {
+  field: PluginField;
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/50 bg-muted/20 px-3.5 py-2.5">
+      <div className="min-w-0 space-y-0.5">
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+          <SchemaIcon name={field.icon} className="size-3.5 text-primary" />
+          {field.label || field.key}
+        </span>
+        {field.hint && (
+          <span className="block text-[11px] leading-relaxed text-muted-foreground">{field.hint}</span>
+        )}
+      </div>
+      <Switch checked={value} onCheckedChange={onChange} />
     </div>
   );
 }

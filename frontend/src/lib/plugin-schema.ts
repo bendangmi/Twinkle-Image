@@ -377,7 +377,7 @@ export function findModel(plugin: InstalledPlugin, modelId: string): PluginModel
 
 /**
  * 估算这一单的价格。按秒计费时数量取 `priceQuantityField` 指定的字段。
- * 插件没申报价格就返回 null，界面上显示「价格未申报」而不是 ¥0.00。
+ * 插件没申报价格就返回 null，界面上整个价格标签不渲染，而不是显示 ¥0.00。
  */
 export function estimateCost(
   plugin: InstalledPlugin,

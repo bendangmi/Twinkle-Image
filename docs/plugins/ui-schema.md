@@ -23,7 +23,7 @@
 | 字段 | 必需 | 说明 |
 | --- | --- | --- |
 | `apiVersion` | ✅ | `1` |
-| `priceQuantityField` | | 按秒计费时数量取哪个字段。不写则 `per-second` 的价格算不出来，显示「价格未申报」。 |
+| `priceQuantityField` | | 按秒计费时数量取哪个字段。不写则 `per-second` 的价格算不出来，界面上不显示价格。 |
 | `layout.toolbar` | | 工具栏里从左到右放什么。`$model` 是模型选择器，`$<facetKey>` 是某个 facet 的小按钮，其余是字段 key。 |
 | `layout.body` | | 主体区从上到下放什么（素材槽与文本字段）。 |
 | `modelSelector` | ✅ | 见下。 |
@@ -152,7 +152,7 @@
 | `options[].description` | `select` 会显示，`select-grid` 作为 tooltip。 |
 | `options[].availableWhen` | 该选项在什么组合下才可选。不可选时置灰并给出说明。 |
 | `columns` | 仅 `select-grid`，方格列数，缺省 3。 |
-| `suffix` | 工具栏按钮上追加的单位，如 `"秒"`。 |
+| `suffix` | 工具栏按钮上追加的单位，如 `"秒"`。展开的方格里只显示 `label`，所以 `label` 应当只写数值（`"5"` 而不是 `"5s"`），否则按钮上会出现「5s秒」这样的两个单位。 |
 
 某个组合下当前取值变得不可选时，宿主会自动落到第一个可选项——
 不这么做，切到量化版后「首尾帧」会留在表单里，直到提交才被后端拒绝。

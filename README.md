@@ -34,6 +34,7 @@ Nova Studio 是一个面向个人/团队的 AI 视频/图像生成工作台。�
 | 我想… | 去这里 |
 | --- | --- |
 | **开发一个视频插件** | **[docs/plugins/](docs/plugins/)** ← 从这里开始 |
+| 拿现成的插件来装 | [nova-studio-plugins](https://github.com/tianjiangqiji/nova-studio-plugins)（官方合集 + 插件模板） |
 | 10 分钟做出第一个能跑的插件 | [docs/plugins/quickstart.md](docs/plugins/quickstart.md) |
 | 让 AI 帮我写插件 | [docs/plugins/LLM.md](docs/plugins/LLM.md)（整份粘给 AI 即可） |
 | 查插件协议的字段 | [manifest](docs/plugins/manifest.md) · [ui.schema](docs/plugins/ui-schema.md) · [provider](docs/plugins/provider.md) |
@@ -119,6 +120,13 @@ Nova Studio 是一个面向个人/团队的 AI 视频/图像生成工作台。�
 - **设置页只读**：只展示已装了哪些插件与加载失败的原因，装卸插件需要管理员操作服务器目录
 - **参考实现**：`backend/plugins/ccode-h3/`（MiniMax H3，8 个模型、首尾帧、参考图/视频/音频、超分档位）
 - **产物地址原样透传**：不替上游改写域名，视频链接就是上游返回的原生地址
+
+📦 **官方插件合集：[nova-studio-plugins](https://github.com/tianjiangqiji/nova-studio-plugins)**
+——含最小插件模板，可直接 clone 进 `backend/plugins/`：
+
+```bash
+cd backend/plugins && git clone https://github.com/tianjiangqiji/nova-studio-plugins.git .
+```
 
 👉 **想自己写插件（或让 AI 写）：[docs/plugins/](docs/plugins/)**
 （把 [docs/plugins/LLM.md](docs/plugins/LLM.md) 整份喂给 AI 即可）

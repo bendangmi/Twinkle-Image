@@ -11,8 +11,8 @@ function symbolFor(currency?: string): string {
 }
 
 /**
- * 单价标签。价格来自插件 manifest 的申报值——开源版不代理任何上游价格接口，
- * 所以这里显示的是插件作者写死的申报价，未申报时明说「未申报」而不是显示 ¥0.00。
+ * 单价标签。价格来自插件 manifest 的申报值——开源版不代理任何上游价格接口。
+ * 未申报时整个标签不渲染：显示「未申报」既占地方又像是出了错，不如让这一处安静消失。
  */
 export function PluginPriceTag({
   plugin,
@@ -24,9 +24,7 @@ export function PluginPriceTag({
   className?: string;
 }) {
   const price = findModel(plugin, modelId)?.price;
-  if (!price) {
-    return <span className={cn('text-[10px] text-muted-foreground/60', className)}>价格未申报</span>;
-  }
+  if (!price) return null;
   const unit = price.unit === 'per-second' ? '/秒' : '/次';
   return (
     <span className={cn('font-mono text-[10px] tabular-nums text-muted-foreground', className)}>
@@ -35,7 +33,7 @@ export function PluginPriceTag({
   );
 }
 
-/** 合计价格。cost 为 null 表示插件没申报价格或数量字段缺失。 */
+/** 合计价格。cost 为 null（未申报价格或数量字段缺失）时不渲染。 */
 export function PluginTotalPrice({
   plugin,
   modelId,
@@ -48,9 +46,7 @@ export function PluginTotalPrice({
   className?: string;
 }) {
   const price = findModel(plugin, modelId)?.price;
-  if (cost === null) {
-    return <span className={cn('text-xs text-muted-foreground/70', className)}>价格未申报</span>;
-  }
+  if (cost === null) return null;
   return (
     <span className={cn('font-mono text-sm font-semibold tabular-nums text-primary', className)}>
       {symbolFor(price?.currency)}{cost.toFixed(2)}

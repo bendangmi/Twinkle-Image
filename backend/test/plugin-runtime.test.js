@@ -423,8 +423,8 @@ test('未申报的主机被拒绝出网', () => {
   assert.throws(() => assertUrlAllowed(plugin, 'https://127.0.0.1/v1/videos', '创建请求'), /内网地址/);
   assert.throws(() => assertUrlAllowed(plugin, 'file:///etc/passwd', '创建请求'), /http\/https/);
   assert.equal(
-    assertUrlAllowed(plugin, 'https://pro.ccode.vip/v1/videos', '创建请求'),
-    'https://pro.ccode.vip/v1/videos',
+    assertUrlAllowed(plugin, 'http://pro.ccode.vip/v1/videos', '创建请求'),
+    'http://pro.ccode.vip/v1/videos',
   );
 });
 

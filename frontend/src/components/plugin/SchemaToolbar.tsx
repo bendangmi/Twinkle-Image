@@ -120,6 +120,9 @@ export function SchemaToolbar({
         }
         const field = findField(schema, entry);
         if (!field) return null;
+        // 工具栏只放选项类控件。switch / 文本 / 素材即使被写进 layout.toolbar 也跳过，
+        // 否则会渲染出一个空 Popover——它们在正文区有各自的控件。
+        if (field.type !== 'select' && field.type !== 'select-grid') return null;
         return (
           <FieldTrigger
             key={entry}

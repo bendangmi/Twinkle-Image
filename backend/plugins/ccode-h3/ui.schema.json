@@ -86,18 +86,18 @@
       "suffix": "秒",
       "default": 4,
       "options": [
-        { "value": 4, "label": "4s" },
-        { "value": 5, "label": "5s" },
-        { "value": 6, "label": "6s" },
-        { "value": 7, "label": "7s" },
-        { "value": 8, "label": "8s" },
-        { "value": 9, "label": "9s" },
-        { "value": 10, "label": "10s" },
-        { "value": 11, "label": "11s" },
-        { "value": 12, "label": "12s" },
-        { "value": 13, "label": "13s" },
-        { "value": 14, "label": "14s" },
-        { "value": 15, "label": "15s" }
+        { "value": 4, "label": "4" },
+        { "value": 5, "label": "5" },
+        { "value": 6, "label": "6" },
+        { "value": 7, "label": "7" },
+        { "value": 8, "label": "8" },
+        { "value": 9, "label": "9" },
+        { "value": 10, "label": "10" },
+        { "value": 11, "label": "11" },
+        { "value": 12, "label": "12" },
+        { "value": 13, "label": "13" },
+        { "value": 14, "label": "14" },
+        { "value": 15, "label": "15" }
       ]
     },
     {

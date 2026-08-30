@@ -102,7 +102,7 @@ backend/plugins/<plugin-id>/
       "name": "Example V1",           // 必需
       "shortName": "V1",              // 可选，缺省用 name
       "description": "",              // 可选
-      "price": {                      // 可选，不写则显示「价格未申报」
+      "price": {                      // 可选，不写则界面上不显示任何价格
         "unit": "per-second",         // "per-second" | "per-call"
         "amount": 0.1,                // 非负数
         "currency": "CNY"             // CNY | USD | EUR

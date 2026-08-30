@@ -62,8 +62,7 @@ export function PluginsSettings() {
           </Button>
         </div>
         <p className="text-xs leading-relaxed text-muted-foreground">
-          视频能力由插件包提供，开源版不内置任何上游协议。安装与卸载插件需要管理员在服务器上
-          操作插件目录，本页只展示当前已装的插件，并让你填写各自的调用凭据。
+          视频能力由插件包提供，安装与卸载插件需要管理员在服务器上操作插件目录。
         </p>
         {registry.pluginsDir && (
           <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
