@@ -1,4 +1,4 @@
-# Nova Image Studio
+# Nova Studio
 
 <div align="center">
 
@@ -16,7 +16,7 @@
 
 ## 📖 简介
 
-Nova Studio是一个面向个人/团队的 AI 图像生成工作台。前端使用 Next.js 16 + React 19 静态导出（PWA），后端是轻量 Node.js 服务（`server.js` + SQLite + WebSocket），统一调度任务并代理图像生成 API。
+Nova Studio 是一个面向个人/团队的 AI 视频/图像生成工作台。前端使用 Next.js 16 + React 19 静态导出（PWA），后端是轻量 Node.js 服务（`server.js` + SQLite + WebSocket），统一调度任务并代理图像生成 API。
 
 **开源版特性：**
 - 支持分别配置图片模型与文本模型，模型级独立保存 API Key 与 Base URL
@@ -153,7 +153,7 @@ Nova Studio是一个面向个人/团队的 AI 图像生成工作台。前端使�
 
 ### 模型系统
 
-Nova Image 采用**用户自定义模型**架构：
+Nova Studio 采用**用户自定义模型**架构：
 
 - **模型级配置**：每个图片模型和文本模型都独立保存协议、显示名称、模型 ID、API Key 与 Base URL
 - **图像模型**：用户自由添加、编辑、删除，支持设置协议、显示名称、模型 ID、最大参考图数量、最大分辨率

@@ -437,7 +437,7 @@ export async function exportAllData(onProgress?: ProgressCallback): Promise<Blob
     files['metadata.json'] = jsonToU8({
         version: process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0',
         exportDate: new Date().toISOString(),
-        appName: 'Nova Image',
+        appName: 'Nova Studio',
     });
 
     // 添加 localStorage 数据

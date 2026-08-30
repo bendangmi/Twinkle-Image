@@ -1,6 +1,6 @@
 # Ccode H3 视频插件
 
-MiniMax H3 系列视频生成，作为 Nova Image 视频插件协议的参考实现随仓库分发。
+MiniMax H3 系列视频生成，作为 Nova Studio 视频插件协议的参考实现随仓库分发。
 
 ## 能力
 
