@@ -179,6 +179,8 @@ function PluginForm({
 }: PluginFormProps) {
   const schema = plugin.uiSchema;
 
+  const [parallelCount, setParallelCount] = useState(1);
+
   const [facets, setFacets] = useState<FacetValues>(() => {
     const fromJob = initialJob ? facetsFromModel(schema, initialJob.model) : null;
     return fromJob ? coerceFacets(schema, fromJob) : defaultFacets(schema);
@@ -395,6 +397,7 @@ function PluginForm({
     startPluginJob({
       job,
       items,
+      parallelCount,
       buildPayload: () => ({
         pluginId: plugin.id,
         apiKey: credential.apiKey,
@@ -414,7 +417,7 @@ function PluginForm({
       items.length > 0 ? `任务已创建，正在上传 ${items.length} 个素材...` : '任务已提交，正在生成中...',
       'success',
     );
-  }, [check, cost, credential, facets, fields, media, mediaFields, model, onConfigureCredential, plugin, promptField, schema, showToast]);
+  }, [check, cost, credential, facets, fields, media, mediaFields, model, onConfigureCredential, parallelCount, plugin, promptField, schema, showToast]);
 
   const body = bodyEntries(schema);
 
@@ -438,6 +441,8 @@ function PluginForm({
           model={model}
           onFacetChange={handleFacetChange}
           onFieldChange={handleFieldChange}
+          parallelCount={parallelCount}
+          onParallelChange={setParallelCount}
         />
 
         {!credential.apiKey && (
@@ -512,7 +517,7 @@ function PluginForm({
           {model && cost !== null ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>预估计费：</span>
-              <PluginTotalPrice plugin={plugin} modelId={model} cost={cost} />
+              <PluginTotalPrice plugin={plugin} modelId={model} cost={cost} parallelCount={parallelCount} />
             </div>
           ) : (
             <span />
@@ -535,7 +540,7 @@ function PluginForm({
             ) : (
               <>
                 <Sparkles className="mr-2 size-4" />
-                开始生成{cost !== null && cost > 0 ? ` (¥${cost.toFixed(2)})` : ''}
+                开始生成{parallelCount > 1 ? ` x${parallelCount}` : (cost !== null && cost > 0 ? ` (¥${cost.toFixed(2)})` : '')}
               </>
             )}
           </Button>

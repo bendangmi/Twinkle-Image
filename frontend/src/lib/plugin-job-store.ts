@@ -11,6 +11,19 @@ import type { PluginAsset } from '@/lib/plugin-task-client';
 
 export type PluginJobStatus = 'uploading' | 'queued' | '排队中' | 'processing' | 'completed' | 'failed';
 
+/** 并发子任务。素材只上传一次，多个子任务共享 URL，各自有独立 serverTaskId 与状态 */
+export interface PluginSubTask {
+  /** 子任务在上游的 ID */
+  serverTaskId: string;
+  status: PluginJobStatus;
+  upstreamStatus?: PluginUpstreamStatus;
+  assets?: PluginAsset[];
+  error?: string;
+  progress?: number;
+  completedAt?: string;
+  serverTaskAcked?: boolean;
+}
+
 /** 上游归一化后的状态，与本机队列状态（PluginJobStatus）分开记 */
 export type PluginUpstreamStatus = 'queued' | 'processing' | 'completed' | 'failed';
 
@@ -51,6 +64,10 @@ export interface PluginJob {
    * 否则上传耗时会被算进生成里。 */
   generationStartedAt?: string;
   completedAt?: string;
+  /** 并发请求数（1-10）。>1 时素材只上传一次，多个子任务共享 URL */
+  parallelCount?: number;
+  /** 并发子任务列表。parallelCount>1 时使用，每个子任务有独立的 serverTaskId 与状态 */
+  subTasks?: PluginSubTask[];
 }
 
 /** 尚未进入终态的状态集合，列表筛选与轮询共用 */
@@ -142,15 +159,61 @@ export function addPluginJob(job: PluginJob): void {
   savePluginJobs([job, ...current.filter(item => item.id !== job.id)]);
 }
 
-export function updatePluginJob(id: string, patch: Partial<PluginJob>): void {
+export function updatePluginJob(id: string, patch: Partial<PluginJob> | ((job: PluginJob) => PluginJob)): void {
   const current = loadPluginJobs();
   let updated = false;
   const next = current.map(job => {
     if (job.id !== id) return job;
     updated = true;
-    return { ...job, ...patch };
+    return typeof patch === 'function' ? patch(job) : { ...job, ...patch };
   });
   if (updated) savePluginJobs(next);
+}
+
+/** 更新某个 job 下某个 subTask 的字段 */
+export function updatePluginSubTask(
+  jobId: string,
+  subTaskId: string,
+  updater: Partial<PluginSubTask>,
+): void {
+  updatePluginJob(jobId, job => {
+    if (!job.subTasks) return job;
+    const subTasks = job.subTasks.map(st =>
+      st.serverTaskId === subTaskId ? { ...st, ...updater } : st
+    );
+    // 根据子任务状态推导父任务状态
+    const allDone = subTasks.every(st => st.status === 'completed' || st.status === 'failed');
+    const anyProcessing = subTasks.some(st => st.status === 'processing' || st.status === 'queued' || st.status === '排队中' || st.status === 'uploading');
+    const allFailed = subTasks.every(st => st.status === 'failed');
+    const completedAssets = subTasks.filter(st => st.assets?.length).flatMap(st => st.assets!);
+
+    let status = job.status;
+    let assets = job.assets;
+    let error: string | undefined = job.error;
+    let completedAt = job.completedAt;
+
+    if (allFailed) {
+      status = 'failed';
+      error = subTasks.find(st => st.error)?.error || '全部并发任务失败';
+      completedAt = new Date().toISOString();
+    } else if (allDone) {
+      status = 'completed';
+      // 父 job 的 assets 取第一个成功的
+      assets = completedAssets.length > 0 ? completedAssets : assets;
+      completedAt = new Date().toISOString();
+    } else if (anyProcessing) {
+      status = 'processing';
+    }
+
+    return {
+      ...job,
+      subTasks,
+      status,
+      assets,
+      error,
+      completedAt,
+    };
+  });
 }
 
 export function removePluginJob(id: string): void {

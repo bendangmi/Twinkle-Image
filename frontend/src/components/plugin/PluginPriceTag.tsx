@@ -38,18 +38,27 @@ export function PluginTotalPrice({
   plugin,
   modelId,
   cost,
+  parallelCount = 1,
   className,
 }: {
   plugin: InstalledPlugin;
   modelId: string;
   cost: number | null;
+  /** 并发请求数。>1 时总价乘以此数 */
+  parallelCount?: number;
   className?: string;
 }) {
   const price = findModel(plugin, modelId)?.price;
   if (cost === null) return null;
+  const total = cost * Math.max(1, parallelCount);
   return (
     <span className={cn('font-mono text-sm font-semibold tabular-nums text-primary', className)}>
-      {symbolFor(price?.currency)}{cost.toFixed(2)}
+      {symbolFor(price?.currency)}{total.toFixed(2)}
+      {parallelCount > 1 && (
+        <span className="ml-1 text-[11px] text-muted-foreground/80">
+          ({symbolFor(price?.currency)}{cost.toFixed(2)} × {parallelCount}个)
+        </span>
+      )}
     </span>
   );
 }

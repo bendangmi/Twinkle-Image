@@ -11,7 +11,7 @@
  * 而后端的素材绑定只在创建任务时才跑，这些孤儿文件要等 TTL 才清。
  */
 
-import { addPluginJob, loadPluginJobs, updatePluginJob, type PluginJob } from '@/lib/plugin-job-store';
+import { addPluginJob, loadPluginJobs, updatePluginJob, type PluginJob, type PluginSubTask } from '@/lib/plugin-job-store';
 import { createPluginTask, uploadPluginMedia, type CreatePluginTaskPayload } from '@/lib/plugin-task-client';
 import type { MediaKind } from '@/lib/plugin-schema';
 
@@ -53,6 +53,8 @@ interface RunnerEntry {
   pluginId: string;
   buildPayload: PayloadBuilder;
   running: boolean;
+  /** 并发任务数。>1 时素材只上传一次，然后并发创建多个上游任务 */
+  parallelCount: number;
 }
 
 const entries = new Map<string, RunnerEntry>();
@@ -152,14 +154,40 @@ async function run(jobId: string): Promise<void> {
 
     updatePluginJob(jobId, { uploadCompletedAt: new Date().toISOString() });
 
+    const parallel = Math.max(1, entry.parallelCount);
+    const payload = entry.buildPayload(urls);
+
     try {
-      const payload = entry.buildPayload(urls);
-      const serverTaskId = await createPluginTask({ ...payload, media: urls });
-      updatePluginJob(jobId, {
-        status: 'processing',
-        serverTaskId,
-        generationStartedAt: new Date().toISOString(),
-      });
+      if (parallel === 1) {
+        // 单并发走原路径：单个 serverTaskId 直接写在 job 上
+        const serverTaskId = await createPluginTask({ ...payload, media: urls });
+        updatePluginJob(jobId, {
+          status: 'processing',
+          serverTaskId,
+          generationStartedAt: new Date().toISOString(),
+        });
+      } else {
+        // 并发：同一份素材 URL 创建 N 个上游任务，存为 subTasks
+        const subTaskPromises = Array.from({ length: parallel }, () =>
+          createPluginTask({ ...payload, media: urls }),
+        );
+        const results = await Promise.allSettled(subTaskPromises);
+        const subTasks: PluginSubTask[] = results.map((result, idx) =>
+          result.status === 'fulfilled'
+            ? { serverTaskId: result.value, status: 'processing' as const }
+            : { serverTaskId: `failed_${idx}`, status: 'failed' as const, error: result.reason instanceof Error ? result.reason.message : '创建任务失败' },
+        );
+        const anyCreated = subTasks.some(st => st.status === 'processing');
+        if (anyCreated) {
+          updatePluginJob(jobId, {
+            status: 'processing',
+            generationStartedAt: new Date().toISOString(),
+            subTasks,
+          });
+        } else {
+          throw new Error(subTasks[0]?.error || '全部并发任务创建失败');
+        }
+      }
       // 任务已交给后端，素材已绑定，内存里的 File 不再需要
       entries.delete(jobId);
       listeners.delete(jobId);
@@ -180,10 +208,12 @@ export interface StartJobInput {
   job: PluginJob;
   items: PendingMedia[];
   buildPayload: PayloadBuilder;
+  /** 并发请求数（1-10），默认 1。>1 时素材只上传一次 */
+  parallelCount?: number;
 }
 
 /** 落一条 uploading 记录并立刻开跑。 */
-export function startPluginJob({ job, items, buildPayload }: StartJobInput): void {
+export function startPluginJob({ job, items, buildPayload, parallelCount = 1 }: StartJobInput): void {
   const now = new Date().toISOString();
   const progress: UploadItemProgress[] = items.map(item => ({
     id: item.id,
@@ -200,6 +230,7 @@ export function startPluginJob({ job, items, buildPayload }: StartJobInput): voi
     running: false,
     progress,
     snapshot: progress.map(item => ({ ...item })),
+    parallelCount: Math.min(10, Math.max(1, parallelCount)),
   });
 
   addPluginJob({ ...job, status: 'uploading', uploadStartedAt: now });

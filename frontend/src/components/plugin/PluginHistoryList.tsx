@@ -3,17 +3,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   Check,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   Download,
   ExternalLink,
   Film,
   Loader2,
+  MoreHorizontal,
   Play,
   RefreshCw,
   RotateCw,
   Search,
   Trash2,
   Video,
+  VolumeX,
   XCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -26,6 +30,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import {
   clearPluginJobs,
@@ -37,6 +47,7 @@ import {
   removePluginJob,
   subscribePluginJobs,
   updatePluginJob,
+  updatePluginSubTask,
   type PluginJob,
 } from '@/lib/plugin-job-store';
 import { ackPluginTask, getPluginTask, probeMediaUrl } from '@/lib/plugin-task-client';
@@ -78,6 +89,10 @@ export function PluginHistoryList({
   const [previewJob, setPreviewJob] = useState<PluginJob | null>(null);
   const [expiredJob, setExpiredJob] = useState<PluginJob | null>(null);
   const [probingId, setProbingId] = useState<string | null>(null);
+  // 预览状态：当前预览的视频索引、预览模式（单屏/分屏）、分屏时另一个视频的索引
+  const [previewIndex, setPreviewIndex] = useState(0);
+  const [splitIndex, setSplitIndex] = useState<number | null>(null);
+  const [previewMode, setPreviewMode] = useState<'single' | 'split'>('single');
 
   // 页面刷新会丢掉内存里待上传的 File，把停在 uploading 的任务标失败，避免永远转圈
   useEffect(() => {
@@ -88,51 +103,94 @@ export function PluginHistoryList({
   const pollActiveJobs = useCallback(async () => {
     if (pollingRef.current) return;
     // uploading 阶段还没有 serverTaskId，由 runner 自己驱动，这里只管已提交到后端的
-    const activeJobs = loadPluginJobs().filter(job => isActivePluginJob(job) && job.serverTaskId);
+    const activeJobs = loadPluginJobs().filter(job => isActivePluginJob(job) && (job.serverTaskId || job.subTasks?.some(st => st.serverTaskId)));
     if (activeJobs.length === 0) return;
 
     pollingRef.current = true;
     try {
       for (const job of activeJobs) {
-        if (!job.serverTaskId) continue;
-        try {
-          const res = await getPluginTask(job.serverTaskId);
-          if (res.status === 'completed') {
-            updatePluginJob(job.id, {
-              status: 'completed',
-              assets: res.result?.assets?.length ? res.result.assets : job.assets,
-              completedAt: new Date().toISOString(),
-              progress: 100,
-              upstreamStatus: 'completed',
-            });
-            void ackPluginTask(job.serverTaskId);
-            showToast?.('生成成功！', 'success');
-          } else if (res.status === 'failed' || res.status === 'expired') {
-            updatePluginJob(job.id, {
-              status: 'failed',
-              error: res.error || '生成失败',
-              completedAt: new Date().toISOString(),
-            });
-            showToast?.(res.error || '生成失败', 'error');
-          } else {
-            // 本机队列状态与上游进度都可能变，逐字段比对后再写——每 5 秒无脑写一次
-            // localStorage 会让整个历史列表跟着重渲染
-            const nextStatus = res.status === 'queued' || res.status === '排队中' ? 'queued' : 'processing';
-            const nextProgress = typeof res.progress === 'number' ? res.progress : undefined;
-            if (
-              job.status !== nextStatus
-              || job.progress !== nextProgress
-              || job.upstreamStatus !== res.upstreamStatus
-            ) {
-              updatePluginJob(job.id, {
-                status: nextStatus,
-                progress: nextProgress,
-                upstreamStatus: res.upstreamStatus,
-              });
+        // 并发子任务模式：轮询每个子任务
+        if (job.subTasks && job.subTasks.length > 0) {
+          for (const sub of job.subTasks) {
+            if (!sub.serverTaskId || sub.serverTaskId.startsWith('failed_')) continue;
+            if (sub.status === 'completed' || sub.status === 'failed') continue;
+            try {
+              const res = await getPluginTask(sub.serverTaskId);
+              if (res.status === 'completed') {
+                updatePluginSubTask(job.id, sub.serverTaskId, {
+                  status: 'completed',
+                  assets: res.result?.assets?.length ? res.result.assets : sub.assets,
+                  completedAt: new Date().toISOString(),
+                  progress: 100,
+                  upstreamStatus: 'completed',
+                });
+                void ackPluginTask(sub.serverTaskId);
+              } else if (res.status === 'failed' || res.status === 'expired') {
+                updatePluginSubTask(job.id, sub.serverTaskId, {
+                  status: 'failed',
+                  error: res.error || '生成失败',
+                  completedAt: new Date().toISOString(),
+                });
+              } else {
+                const nextStatus = res.status === 'queued' || res.status === '排队中' ? 'queued' : 'processing';
+                const nextProgress = typeof res.progress === 'number' ? res.progress : undefined;
+                updatePluginSubTask(job.id, sub.serverTaskId, {
+                  status: nextStatus,
+                  progress: nextProgress,
+                  upstreamStatus: res.upstreamStatus,
+                });
+              }
+            } catch (err) {
+              console.warn(`[PluginHistoryList] 轮询子任务 ${sub.serverTaskId} 错误:`, err);
             }
           }
-        } catch (error) {
-          console.warn(`[PluginHistoryList] 轮询任务 ${job.id} 错误:`, error);
+          // 检查是否全部完成
+          const updatedJob = loadPluginJobs().find(j => j.id === job.id);
+          if (updatedJob?.status === 'completed' && updatedJob.subTasks) {
+            const successCount = updatedJob.subTasks.filter(st => st.status === 'completed').length;
+            showToast?.(`并发任务全部完成（成功 ${successCount}/${updatedJob.subTasks.length}）`, 'success');
+          }
+        } else if (job.serverTaskId) {
+          // 单任务模式（原有逻辑）
+          try {
+            const res = await getPluginTask(job.serverTaskId);
+            if (res.status === 'completed') {
+              updatePluginJob(job.id, {
+                status: 'completed',
+                assets: res.result?.assets?.length ? res.result.assets : job.assets,
+                completedAt: new Date().toISOString(),
+                progress: 100,
+                upstreamStatus: 'completed',
+              });
+              void ackPluginTask(job.serverTaskId);
+              showToast?.('生成成功！', 'success');
+            } else if (res.status === 'failed' || res.status === 'expired') {
+              updatePluginJob(job.id, {
+                status: 'failed',
+                error: res.error || '生成失败',
+                completedAt: new Date().toISOString(),
+              });
+              showToast?.(res.error || '生成失败', 'error');
+            } else {
+              // 本机队列状态与上游进度都可能变，逐字段比对后再写——每 5 秒无脑写一次
+              // localStorage 会让整个历史列表跟着重渲染
+              const nextStatus = res.status === 'queued' || res.status === '排队中' ? 'queued' : 'processing';
+              const nextProgress = typeof res.progress === 'number' ? res.progress : undefined;
+              if (
+                job.status !== nextStatus
+                || job.progress !== nextProgress
+                || job.upstreamStatus !== res.upstreamStatus
+              ) {
+                updatePluginJob(job.id, {
+                  status: nextStatus,
+                  progress: nextProgress,
+                  upstreamStatus: res.upstreamStatus,
+                });
+              }
+            }
+          } catch (error) {
+            console.warn(`[PluginHistoryList] 轮询任务 ${job.id} 错误:`, error);
+          }
         }
       }
     } finally {
@@ -181,8 +239,16 @@ export function PluginHistoryList({
   }, []);
 
   const handlePreview = useCallback(async (job: PluginJob) => {
-    if (await ensureUsable(job)) setPreviewJob(job);
-  }, [ensureUsable]);
+    if (await ensureUsable(job)) {
+      // 找到该 job 在已完成列表中的索引
+      const completedJobs = jobs.filter(j => j.status === 'completed' && primaryAsset(j)?.url);
+      const idx = completedJobs.findIndex(j => j.id === job.id);
+      setPreviewIndex(idx >= 0 ? idx : 0);
+      setSplitIndex(null);
+      setPreviewMode('single');
+      setPreviewJob(job);
+    }
+  }, [ensureUsable, jobs]);
 
   const handleDownload = useCallback(async (job: PluginJob) => {
     const asset = primaryAsset(job);
@@ -352,7 +418,7 @@ export function PluginHistoryList({
         </div>
       </section>
 
-      {/* 预览播放器：点开才加载。铺满整个视口——视频不像图片能缩着看 */}
+      {/* 预览播放器：支持左右切换、分屏同时播放 */}
       <Dialog open={Boolean(previewJob)} onOpenChange={open => { if (!open) setPreviewJob(null); }}>
         <DialogContent className="flex h-[100dvh] flex-col gap-3 overflow-hidden rounded-none bg-background p-4 sm:inset-0 sm:left-0 sm:top-0 sm:h-[100dvh] sm:max-h-none sm:w-screen sm:max-w-none sm:translate-x-0 sm:translate-y-0 sm:rounded-none">
           {/* pr-12 让出右上角关闭按钮的位置 */}
@@ -362,30 +428,172 @@ export function PluginHistoryList({
               {previewJob?.prompt}
             </DialogDescription>
           </DialogHeader>
-          {previewJob && primaryAsset(previewJob)?.url && (
-            /* 不锁 16:9：竖屏视频照原比例居中，object-contain 保证不裁不拉伸 */
-            <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-black">
-              <video
-                src={primaryAsset(previewJob)!.url}
-                poster={primaryAsset(previewJob)!.posterUrl}
-                controls
-                autoPlay
-                loop
-                playsInline
-                className="max-h-full max-w-full object-contain"
-              />
-            </div>
-          )}
+          {previewJob && primaryAsset(previewJob)?.url && (() => {
+            // 所有已完成的可预览视频
+            const previewableJobs = jobs.filter(j => j.status === 'completed' && primaryAsset(j)?.url);
+            const currentJob = previewableJobs[previewIndex] ?? previewJob;
+            const leftVideo = primaryAsset(currentJob)?.url!;
+            const rightVideo = previewMode === 'split' && splitIndex !== null
+              ? primaryAsset(previewableJobs[splitIndex] ?? previewJob)?.url
+              : null;
+            return (
+              <>
+                {/* 视频区域 */}
+                <div className="flex min-h-0 flex-1 items-stretch justify-center gap-2 overflow-hidden rounded-xl border border-border/60 bg-black">
+                  {/* 左侧视频（主视频） */}
+                  <div className="relative flex min-w-0 flex-1 items-center justify-center">
+                    <video
+                      key={`left-${leftVideo}`}
+                      src={leftVideo}
+                      poster={primaryAsset(currentJob)?.posterUrl}
+                      controls={previewMode === 'single'}
+                      autoPlay
+                      loop
+                      muted={previewMode === 'split'}
+                      playsInline
+                      className="max-h-full max-w-full object-contain"
+                    />
+                    {previewMode === 'split' && (
+                      <span className="absolute left-2 top-2 rounded-md bg-black/60 px-2 py-0.5 text-[10px] text-white/80">左</span>
+                    )}
+                  </div>
+                  {/* 右侧视频（分屏模式） */}
+                  {previewMode === 'split' && rightVideo && (
+                    <div className="relative flex min-w-0 flex-1 items-center justify-center border-l border-white/10">
+                      <video
+                        key={`right-${rightVideo}`}
+                        src={rightVideo}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="max-h-full max-w-full object-contain"
+                      />
+                      <span className="absolute left-2 top-2 rounded-md bg-black/60 px-2 py-0.5 text-[10px] text-white/80">右</span>
+                    </div>
+                  )}
+                  {/* 分屏模式下若未选右侧视频，显示占位 */}
+                  {previewMode === 'split' && !rightVideo && (
+                    <div className="flex min-w-0 flex-1 items-center justify-center border-l border-white/10">
+                      <span className="text-sm text-white/40">请在下方选择右侧视频</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* 导航栏：左右切换 + 模式切换 */}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  {/* 左右切换 */}
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={previewIndex === 0 && previewableJobs.length > 0}
+                      onClick={() => {
+                        const prevIdx = (previewIndex - 1 + previewableJobs.length) % previewableJobs.length;
+                        setPreviewIndex(prevIdx);
+                        setPreviewJob(previewableJobs[prevIdx]);
+                      }}
+                      className="h-8 rounded-xl px-2 text-xs"
+                      title="上一个视频"
+                    >
+                      <ChevronLeft className="size-4" />
+                    </Button>
+                    <span className="px-2 text-xs text-muted-foreground tabular-nums">
+                      {previewIndex + 1} / {Math.max(1, previewableJobs.length)}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={previewableJobs.length <= 1}
+                      onClick={() => {
+                        const nextIdx = (previewIndex + 1) % previewableJobs.length;
+                        setPreviewIndex(nextIdx);
+                        setPreviewJob(previewableJobs[nextIdx]);
+                      }}
+                      className="h-8 rounded-xl px-2 text-xs"
+                      title="下一个视频"
+                    >
+                      <ChevronRight className="size-4" />
+                    </Button>
+                  </div>
+
+                  {/* 模式切换：单屏 / 分屏 */}
+                  <div className="flex items-center rounded-lg border border-border bg-muted/60 p-0.5 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewMode('single')}
+                      className={cn(
+                        'rounded-md px-2.5 py-1 font-medium transition-colors',
+                        previewMode === 'single' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      单屏
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewMode('split')}
+                      className={cn(
+                        'rounded-md px-2.5 py-1 font-medium transition-colors',
+                        previewMode === 'split' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                      )}
+                      title="分屏同时播放（两个视频均静音）"
+                    >
+                      <VolumeX className="mr-1 inline size-3" />
+                      分屏
+                    </button>
+                  </div>
+                </div>
+
+                {/* 分屏模式下选择右侧视频 */}
+                {previewMode === 'split' && previewableJobs.length > 1 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground">右侧视频：</span>
+                    {previewableJobs.map((j, idx) => (
+                      <button
+                        key={j.id}
+                        type="button"
+                        onClick={() => setSplitIndex(idx)}
+                        className={cn(
+                          'rounded-md border px-2 py-1 text-[11px] transition-colors',
+                          splitIndex === idx
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border text-muted-foreground hover:bg-muted',
+                        )}
+                      >
+                        {idx + 1}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
           <DialogFooter className="shrink-0 gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => previewJob && void handleDownload(previewJob)}
-              className="rounded-xl"
-            >
-              <Download className="mr-1.5 size-3.5" />
-              下载视频
-            </Button>
+            {/* 下载 / 复制链接 / 跳转合并为菜单 */}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-input bg-background px-3 text-xs font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                <MoreHorizontal className="size-3.5" />
+                操作
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => previewJob && void handleDownload(previewJob)}>
+                  <Download className="mr-1.5 size-3.5" />
+                  下载视频
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => previewJob && primaryAsset(previewJob)?.url && handleCopy(primaryAsset(previewJob)!.url, setCopiedId, previewJob.id, '链接')}>
+                  {copiedId === previewJob?.id
+                    ? <Check className="mr-1.5 size-3.5 text-emerald-600" />
+                    : <Copy className="mr-1.5 size-3.5" />}
+                  复制链接
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => previewJob && primaryAsset(previewJob)?.url && window.open(primaryAsset(previewJob)!.url, '_blank')}>
+                  <ExternalLink className="mr-1.5 size-3.5" />
+                  新窗口打开
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -521,6 +729,17 @@ function JobCard({
           <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
             {job.pluginName}
           </span>
+          {/* 并发子任务标记 */}
+          {job.parallelCount && job.parallelCount > 1 && (
+            <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">
+              并发 x{job.parallelCount}
+              {job.subTasks && (() => {
+                const done = job.subTasks.filter(st => st.status === 'completed').length;
+                const failed = job.subTasks.filter(st => st.status === 'failed').length;
+                return ` (${done}成${failed > 0 ? `/${failed}败` : ''}/${job.subTasks.length})`;
+              })()}
+            </span>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -608,40 +827,32 @@ function JobCard({
               预览
             </Button>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onDownload}
-              disabled={downloadingId === job.id || probingId === job.id}
-              className="h-8 rounded-xl px-3 text-xs"
-            >
-              {downloadingId === job.id
-                ? <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                : <Download className="mr-1.5 size-3.5" />}
-              下载视频
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onCopyLink(asset.url)}
-              className="h-8 rounded-xl px-2.5 text-xs text-muted-foreground hover:text-foreground"
-              title="复制链接"
-            >
-              {copiedId === job.id
-                ? <Check className="size-3.5 text-emerald-600" />
-                : <Copy className="size-3.5" />}
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => window.open(asset.url, '_blank')}
-              className="h-8 rounded-xl px-2.5 text-xs text-muted-foreground hover:text-foreground"
-              title="在浏览器新窗口打开"
-            >
-              <ExternalLink className="size-3.5" />
-            </Button>
+            {/* 下载 / 复制链接 / 跳转合并为菜单 */}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                disabled={probingId === job.id}
+                className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-input bg-background px-3 text-xs font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
+              >
+                <MoreHorizontal className="size-3.5" />
+                操作
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={onDownload}>
+                  <Download className="mr-1.5 size-3.5" />
+                  下载视频
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onCopyLink(asset.url)}>
+                  {copiedId === job.id
+                    ? <Check className="mr-1.5 size-3.5 text-emerald-600" />
+                    : <Copy className="mr-1.5 size-3.5" />}
+                  复制链接
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => window.open(asset.url, '_blank')}>
+                  <ExternalLink className="mr-1.5 size-3.5" />
+                  新窗口打开
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           <JobCardActions job={job} onReuseParams={onReuseParams} onRemove={onRemove} />

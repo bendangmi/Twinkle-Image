@@ -73,6 +73,9 @@ interface SchemaToolbarProps {
   onFieldChange: (key: string, value: string | number | boolean) => void;
   size?: 'xs' | 'sm';
   className?: string;
+  /** 并发请求数 */
+  parallelCount?: number;
+  onParallelChange?: (n: number) => void;
 }
 
 /**
@@ -88,9 +91,13 @@ export function SchemaToolbar({
   onFieldChange,
   size = 'xs',
   className,
+  parallelCount,
+  onParallelChange,
 }: SchemaToolbarProps) {
   const schema = plugin.uiSchema;
   const entries = toolbarEntries(schema);
+  const [parallelOpen, setParallelOpen] = useState(false);
+  const showParallel = typeof parallelCount === 'number' && typeof onParallelChange === 'function';
 
   return (
     <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
@@ -134,6 +141,36 @@ export function SchemaToolbar({
           />
         );
       })}
+
+      {/* 并发请求数 */}
+      {showParallel && (
+        <Popover open={parallelOpen} onOpenChange={setParallelOpen}>
+          <PopoverTrigger className={cn(buttonVariants({ variant: 'outline', size }), 'gap-1')} title="并发请求数">
+            <Layers className="h-3 w-3" />
+            <span className="text-[11px]">并发 {parallelCount}</span>
+          </PopoverTrigger>
+          <PopoverContent className="w-44 p-1" align="start">
+            <div className="grid grid-cols-5 gap-1">
+              {Array.from({ length: 10 }, (_, i) => i + 1).map(n => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => {
+                    onParallelChange!(n);
+                    setParallelOpen(false);
+                  }}
+                  className={cn(
+                    'rounded-md px-2 py-1.5 text-center text-xs tabular-nums transition-colors hover:bg-muted',
+                    parallelCount === n && 'bg-muted font-medium',
+                  )}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+      )}
 
       {model && (
         <span className="ml-auto inline-flex items-center gap-1 pl-1">
