@@ -37,7 +37,7 @@ backend/ccode-images/
 .trae/
 .codex/
 .agents/
-/docs/
+# docs/ 随仓库分发（README 截图 + 插件开发文档），不再忽略
 
 data/
 # Docker Compose 运行时在根目录复制的配置（勿提交）

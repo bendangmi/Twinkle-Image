@@ -10,6 +10,7 @@ import {
   EyeOff,
   ImageIcon,
   Info,
+  Package,
   Plus,
   RefreshCw,
   Save,
@@ -27,6 +28,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PluginsSettings } from '@/components/settings/PluginsSettings';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -414,6 +416,10 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
               <ImageIcon className="w-4 h-4" />
               模型配置
             </TabsTrigger>
+            <TabsTrigger value="plugins" className="gap-2 rounded-none border-b-2 border-transparent data-active:border-primary data-active:bg-transparent data-active:shadow-none px-4 py-3">
+              <Package className="w-4 h-4" />
+              插件
+            </TabsTrigger>
             <TabsTrigger value="backup" className="gap-2 rounded-none border-b-2 border-transparent data-active:border-primary data-active:bg-transparent data-active:shadow-none px-4 py-3">
               <Database className="w-4 h-4" />
               备份
@@ -729,6 +735,10 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
                 </div>
               )}
             </div>
+          </TabsContent>
+
+          <TabsContent value="plugins" className="min-h-0 overflow-y-auto p-4 sm:p-6 space-y-6 mt-0">
+            <PluginsSettings />
           </TabsContent>
 
           <TabsContent value="backup" className="min-h-0 overflow-y-auto p-4 sm:p-6 space-y-6 mt-0">

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { ImageGenerationWorkbench } from '@/components/ImageGenerationWorkbench';
+import { PluginWorkbench } from '@/components/plugin/PluginWorkbench';
+import { PluginHistoryList } from '@/components/plugin/PluginHistoryList';
 import { ReversePromptForm } from '@/components/ReversePromptForm';
 import { GifGenerationWorkspace } from '@/components/GifGenerationWorkspace';
 import { AgentChatWorkspace } from '@/components/agent/AgentChatWorkspace';
@@ -37,6 +39,7 @@ import { getNovaTask } from '@/lib/ccode-task-client';
 import { finalizeCompletedServerTask } from '@/lib/workspace-task-service';
 import { classifyTaskFailure } from '@/lib/task-failure';
 import type { RefImageData, StoredJob } from '@/lib/job-store';
+import type { PluginJob } from '@/lib/plugin-job-store';
 import { subscribeImageActionToasts, subscribeUseAsImageReference } from '@/lib/image-actions';
 import {
   submitImageToImage,
@@ -52,7 +55,8 @@ export function WorkspaceShell() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [missingApiKeyDialogOpen, setMissingApiKeyDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'image-generation' | 'agent' | 'canvas' | 'image-to-slice' | 'assets' | 'reverse-prompt' | 'gif' | 'prompt-gallery'>('agent');
+  const [activeTab, setActiveTab] = useState<'image-generation' | 'video-generation' | 'agent' | 'canvas' | 'image-to-slice' | 'assets' | 'reverse-prompt' | 'gif' | 'prompt-gallery'>('agent');
+  const [videoInitialJob, setVideoInitialJob] = useState<PluginJob | null>(null);
   const [generationHistoryFilter, setGenerationHistoryFilter] = useState<GenerationHistoryFilter>('all');
   const [generationClearScope, setGenerationClearScope] = useState<HistoryClearScope | null>(null);
   const [referenceDraft, setReferenceDraft] = useState<{ id: number; refImages: RefImageData[]; prompt?: string } | null>(null);
@@ -397,6 +401,28 @@ export function WorkspaceShell() {
                   disabled={!workspace.hasApiKey}
                   onConfigureApiKey={() => setSettingsOpen(true)}
                 />
+              </TabsContent>
+
+              <TabsContent value="video-generation" keepMounted className={cn(wideMode ? 'space-y-6 xl:flex xl:min-h-0 xl:space-y-0' : 'space-y-3')}>
+                <div className={cn(wideMode ? 'grid items-start gap-5 xl:h-full xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(460px,0.95fr)_minmax(0,1.35fr)] xl:items-stretch' : 'space-y-3')}>
+                  <div className={cn(wideMode && 'xl:h-full xl:min-h-0 xl:overflow-y-auto xl:pr-1')}>
+                    <PluginWorkbench
+                      wideMode={wideMode}
+                      onConfigureCredential={() => setSettingsOpen(true)}
+                      showToast={showToast}
+                      initialJob={videoInitialJob}
+                    />
+                  </div>
+                  <PluginHistoryList
+                    wideMode={wideMode}
+                    active={activeTab === 'video-generation'}
+                    showToast={showToast}
+                    onReuseParams={job => {
+                      setVideoInitialJob(job);
+                      setActiveTab('video-generation');
+                    }}
+                  />
+                </div>
               </TabsContent>
 
               <TabsContent value="canvas" keepMounted className={cn('min-h-0', wideMode ? 'xl:flex xl:min-h-0 xl:flex-1 xl:flex-col' : 'space-y-6')}>

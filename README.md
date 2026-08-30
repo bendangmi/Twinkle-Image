@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**自托管的 AI 图像生成工作台 · 自定义模型 · 多模式 · PWA · 实时任务**
+**自托管的 AI 视频/图像生成工作台 · 自定义模型 · 多模式 · PWA · 实时任务**
 
 [![Version](https://img.shields.io/badge/version-v3.2.0-blue.svg)](https://github.com)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE)
@@ -16,15 +16,30 @@
 
 ## 📖 简介
 
-Nova Image Studio（简称 Nova Image）是一个面向个人/团队的 AI 图像生成工作台。前端使用 Next.js 16 + React 19 静态导出（PWA），后端是轻量 Node.js 服务（`server.js` + SQLite + WebSocket），统一调度任务并代理图像生成 API。
+Nova Image Studio（简称 Nova Studio）是一个面向个人/团队的 AI 图像生成工作台。前端使用 Next.js 16 + React 19 静态导出（PWA），后端是轻量 Node.js 服务（`server.js` + SQLite + WebSocket），统一调度任务并代理图像生成 API。
 
 **开源版特性：**
 - 支持分别配置图片模型与文本模型，模型级独立保存 API Key 与 Base URL
 - 用户自定义模型列表和 API 端点，后端按协议路由并透传已配置参数
 - 所有配置存储在浏览器 localStorage
 - 文字模型支持 Google（generateContent）和 OpenAI（Response 协议）
+- **视频生成完全插件化**：本体不内置任何视频上游协议，能力由插件包提供
 
 > 当前版本：**v3.2.0**
+
+## 📚 文档
+
+所有文档都在 [`docs/`](docs/) 目录下。
+
+| 我想… | 去这里 |
+| --- | --- |
+| **开发一个视频插件** | **[docs/plugins/](docs/plugins/)** ← 从这里开始 |
+| 10 分钟做出第一个能跑的插件 | [docs/plugins/quickstart.md](docs/plugins/quickstart.md) |
+| 让 AI 帮我写插件 | [docs/plugins/LLM.md](docs/plugins/LLM.md)（整份粘给 AI 即可） |
+| 查插件协议的字段 | [manifest](docs/plugins/manifest.md) · [ui.schema](docs/plugins/ui-schema.md) · [provider](docs/plugins/provider.md) |
+| 排查插件装不上 / 任务失败 | [docs/plugins/errors.md](docs/plugins/errors.md) |
+| 抄常见写法 | [docs/plugins/cookbook.md](docs/plugins/cookbook.md) |
+| 搞清楚任务从提交到出片经过什么 | [docs/plugins/lifecycle.md](docs/plugins/lifecycle.md) |
 
 ## 💎 赞助商
 
@@ -38,7 +53,7 @@ Nova Image Studio（简称 Nova Image）是一个面向个人/团队的 AI 图�
 
 | 宽屏 | 窄屏 | 手机版 |
 |:---:|:---:|:---:|
-| ![生图工作台宽屏](doc/生图工作台宽屏.png) | ![生图工作台窄屏](doc/生图工作台窄屏.png) | ![生图工作台手机版](doc/生图工作台手机版.png) |
+| ![生图工作台宽屏](docs/images/生图工作台宽屏.png) | ![生图工作台窄屏](docs/images/生图工作台窄屏.png) | ![生图工作台手机版](docs/images/生图工作台手机版.png) |
 
 ### UI设计模式（图片切图 + 网页复刻）
 
@@ -46,41 +61,41 @@ Nova Image Studio（简称 Nova Image）是一个面向个人/团队的 AI 图�
 
 | ① 待复刻原图 | ② 导入并开始拆图 | ③ 自动拆图 + 手动调整 | ④ 开始生成网页复刻 |
 |:---:|:---:|:---:|:---:|
-| ![待复刻原图](doc/待复刻原图.png) | ![导入并开始拆图](doc/导入并开始拆图.png) | ![完成自动拆图并手动调整](doc/完成自动拆图并手动调整或拆图.png) | ![开始生成网页复刻](doc/开始生成网页复刻.png) |
+| ![待复刻原图](docs/images/待复刻原图.png) | ![导入并开始拆图](docs/images/导入并开始拆图.png) | ![完成自动拆图并手动调整](docs/images/完成自动拆图并手动调整或拆图.png) | ![开始生成网页复刻](docs/images/开始生成网页复刻.png) |
 
 | ⑤ Agent 修改复刻 | ⑥ 多轮完成修改 | ⑦ 导出为压缩包 | ⑧ 实物展示 |
 |:---:|:---:|:---:|:---:|
-| ![Agent修改复刻](doc/agent修改复刻.png) | ![多轮完成修改](doc/多轮完成修改.png) | ![导出为压缩包](doc/导出为压缩包.png) | ![实物展示](doc/实物展示.png) |
+| ![Agent修改复刻](docs/images/agent修改复刻.png) | ![多轮完成修改](docs/images/多轮完成修改.png) | ![导出为压缩包](docs/images/导出为压缩包.png) | ![实物展示](docs/images/实物展示.png) |
 
 ### Agent 模式
 
 | 询问 | 生成 |
 |:---:|:---:|
-| ![Agent模式询问](doc/Agent模式询问.png) | ![Agent模式生成](doc/Agent模式生成.png) |
+| ![Agent模式询问](docs/images/Agent模式询问.png) | ![Agent模式生成](docs/images/Agent模式生成.png) |
 
 ### GIF 生成
 
 | 生成 | 微调 |
 |:---:|:---:|
-| ![GIF生成](doc/GIF生成.png) | ![GIF微调](doc/GIF微调.png) |
+| ![GIF生成](docs/images/GIF生成.png) | ![GIF微调](docs/images/GIF微调.png) |
 
 ### 无限画布
 
 | 预览 | 编辑 |
 |:---:|:---:|
-| ![无限画布预览](doc/无限画布预览.png) | ![无限画布编辑](doc/无限画布编辑.png) |
+| ![无限画布预览](docs/images/无限画布预览.png) | ![无限画布编辑](docs/images/无限画布编辑.png) |
 
 ### 其他功能
 
 | 反推提示词 | 提示词广场 | 我的素材 | 设置 |
 |:---:|:---:|:---:|:---:|
-| ![反推提示词](doc/反推提示词.png) | ![提示词广场](doc/提示词广场.png) | ![我的素材](doc/我的素材.png) | ![设置](doc/设置.png) |
+| ![反推提示词](docs/images/反推提示词.png) | ![提示词广场](docs/images/提示词广场.png) | ![我的素材](docs/images/我的素材.png) | ![设置](docs/images/设置.png) |
 
 ---
 
 ## ✨ 功能特性
 
-### 六大工作模式
+### 七大工作模式
 
 | 模式 | 入口 | 简介 |
 | --- | --- | --- |
@@ -90,6 +105,23 @@ Nova Image Studio（简称 Nova Image）是一个面向个人/团队的 AI 图�
 | ✂️ UI设计模式 | `SliceWorkspace` | UI 图 → 切图资产 → 网页复刻（仅宽屏可用，详见下节） |
 | 🔍 反推提示词 | `ReversePromptForm` | 上传图片流式反推提示词（支持所有已配置的文字模型） |
 | 🎬 动图生成 | `GifGenerationWorkspace` | 多帧生图 + 网格拼合，浏览器端编码 GIF（`gifenc`） |
+| 🎥 视频工作台 | `PluginWorkbench` | 由**视频插件**提供能力，本体不内置任何上游协议（详见下节） |
+
+### 视频工作台（插件化）
+
+视频生成不内置任何具体上游协议——tab、任务队列、历史记录、素材上传、表单渲染由本体提供，
+「向谁发什么请求、怎么轮询、结果在哪、表单长什么样」全部写在插件包里。
+
+- **安装方式**：管理员把插件目录放进 `backend/plugins/`，重启后端（或在设置里点「重新读取」）
+- **插件是纯 JSON**：三个文件（`manifest.json` / `ui.schema.json` / `provider.json`），不含可执行代码
+- **出网需申报**：`permissions.hosts` 之外的主机、以及所有内网地址一律被拒绝
+- **凭据属于用户**：apiKey / baseUrl 在「设置 → 插件」里填，存浏览器，不入库
+- **设置页只读**：只展示已装了哪些插件与加载失败的原因，装卸插件需要管理员操作服务器目录
+- **参考实现**：`backend/plugins/ccode-h3/`（MiniMax H3，8 个模型、首尾帧、参考图/视频/音频、超分档位）
+- **产物地址原样透传**：不替上游改写域名，视频链接就是上游返回的原生地址
+
+👉 **想自己写插件（或让 AI 写）：[docs/plugins/](docs/plugins/)**
+（把 [docs/plugins/LLM.md](docs/plugins/LLM.md) 整份喂给 AI 即可）
 
 ### UI设计模式（图片切图 + 网页复刻）
 
@@ -161,10 +193,13 @@ nova-image-studio/
 │   │   ├── components/       # 业务组件 + shadcn/ui 基础组件
 │   │   │   ├── workspace/    # 主工作台壳、Tab、Header、结果区
 │   │   │   ├── agent/        # Agent 模式相关组件
+│   │   │   ├── plugin/       # 视频插件宿主：schema 表单、素材槽、历史、进度
+│   │   │   ├── settings/     # 设置页分区（插件清单与凭据）
 │   │   │   ├── slice/        # UI设计模式：切图编辑器、资产面板、网页复刻
 │   │   │   └── ui/           # shadcn 风格 UI 基础件
 │   │   ├── hooks/            # useQueueStatus / useAgentChat / useGifWorkflow / ...
 │   │   ├── lib/              # 客户端工具、API 客户端、WebSocket、备份
+│   │   │   ├── plugin-*.ts   # 插件 schema 求解、任务客户端、历史、上传
 │   │   │   ├── slice-*.ts    # 切图几何/裁剪/矢量化/导出/AI 客户端
 │   │   │   └── web-agent/    # 网页复刻 agent：虚拟文件系统、工具、主循环
 │   │   └── test/             # vitest 配置与用例
@@ -174,10 +209,16 @@ nova-image-studio/
 │   └── vitest.config.ts
 ├── backend/
 │   ├── server.js             # Node 服务（HTTP + WS + SQLite + 任务队列）
+│   ├── plugin-runtime/       # 视频插件运行时：注册表、校验、模板、执行、素材、自检 CLI
+│   ├── plugins/              # 已安装的视频插件（管理员放置）
+│   │   └── ccode-h3/         # 参考实现：MiniMax H3
 │   ├── prompts.json          # 提示词广场内容
 │   ├── blacklist.json        # 敏感词
 │   ├── .env.example
 │   └── package.json
+├── docs/
+│   ├── images/               # README 截图
+│   └── plugins/              # 视频插件开发文档（含喂给 AI 的 LLM.md）
 ├── scripts/
 │   ├── pack.js               # 打包：build + 汇总到 out.zip
 │   └── generate-icons.js     # 生成 PWA 图标
@@ -435,8 +476,15 @@ docker push tianjiangqiji/nova-image-studio:latest
 | `NOVA_RATE_LIMIT_RETRY_AFTER_SECONDS` | 否 | `30` | 队列满/限流时响应头 `Retry-After` 秒数 |
 | `PROMPT_GALLERY_MODE` | 否 | `2` | `1` 常驻 / `2` 私密密码（点七下标题） / `3` 关闭 |
 | `PROMPT_GALLERY_PASSWORD` | 否 | 空 | 提示词广场私密模式密码；为空时私密模式可直接开启 |
+| `NOVA_PLUGINS_DIR` | 否 | `backend/plugins` | 视频插件目录（管理员把插件放这里） |
+| `NOVA_PLUGIN_MEDIA_DIR` | 否 | `backend/data/plugin-media` | 视频参考素材落盘目录 |
+| `NOVA_PLUGIN_MEDIA_TTL_MS` | 否 | `86400000` | 未绑定任务的孤儿素材保留时长（毫秒） |
+| `NOVA_MEDIA_MAX_IMAGE_BYTES` | 否 | `10485760` | 参考图片单文件上限 |
+| `NOVA_MEDIA_MAX_VIDEO_BYTES` | 否 | `52428800` | 参考视频单文件上限 |
+| `NOVA_MEDIA_MAX_AUDIO_BYTES` | 否 | `15728640` | 参考音频单文件上限 |
+| `NOVA_PUBLIC_BASE_URL` | 视情况 | 按反代头推断 | 本服务的公网地址。上游要匿名拉取参考素材，**内网部署必须显式配置** |
 
-> `.env` 修改后大部分运行时配置**实时生效**（任务并发、限流、队列容量、接单开关、广场模式），无需重启；`PORT`、`HOSTNAME`、`NODE_ENV`、`NOVA_TASK_DB`、`NOVA_IMAGE_DIR` 这类启动级配置仍需重启。
+> `.env` 修改后大部分运行时配置**实时生效**（任务并发、限流、队列容量、接单开关、广场模式、素材体积上限），无需重启；`PORT`、`HOSTNAME`、`NODE_ENV`、`NOVA_TASK_DB`、`NOVA_IMAGE_DIR`、`NOVA_PLUGINS_DIR` 这类启动级配置仍需重启。
 
 ---
 
@@ -454,6 +502,12 @@ docker push tianjiangqiji/nova-image-studio:latest
 | `GET` | `/api/nova/blacklist` | 敏感词列表 |
 | `GET` | `/api/nova/config` | 前端配置（如 `promptGalleryMode`） |
 | `GET` | `/api/nova/images/:taskId/:index` | 任务产物图片 |
+| `GET` | `/api/nova/plugins` | 已安装视频插件（`?reload=1` 重新扫描插件目录） |
+| `POST` | `/api/nova/plugin-tasks` | 创建视频插件任务，返回 `{ taskId }`（202） |
+| `GET` | `/api/nova/plugin-tasks/:id` | 查询插件任务（本机状态 + 上游状态 + 进度 + 产物） |
+| `POST` | `/api/nova/plugin-tasks/:id/ack` | 续期：把 TTL 收到 2 分钟 |
+| `POST` | `/api/nova/plugin-media?pluginId=&kind=` | 上传参考素材，返回公网 URL |
+| `GET` | `/api/nova/plugin-media/:file` | 回读参考素材（匿名，供上游拉取） |
 | `WS` | `/api/nova/ws` | 实时任务 / 队列订阅 |
 
 ### 任务状态
