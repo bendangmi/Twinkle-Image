@@ -1,14 +1,13 @@
 {
   "name": "twinkle-image-backend",
-  "version": "3.3.0",
+  "version": "3.3.1",
   "private": true,
   "description": "Twinkle Image 后端 - 任务队列和 API 服务器",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
     "lint": "eslint",
-    "test": "node --test",
-    "plugins:verify": "node plugin-runtime/verify.js"
+    "test": "node --test"
   },
   "dependencies": {
     "better-sqlite3": "^12.5.0",

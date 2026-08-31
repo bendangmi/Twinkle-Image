@@ -5,8 +5,8 @@ import { ServiceWorkerManager } from "@/components/ServiceWorkerManager";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Twinkle Image - AI 视频/图像工作台",
-  description: "Twinkle Image AI 视频/图像创作工作台",
+  title: "Twinkle Image - AI 视觉工作台",
+  description: "Twinkle Image AI 图像创作与素材工作台",
   icons: {
     icon: [
       { url: '/brand-mark-64.png?v=9', sizes: '64x64', type: 'image/png' },

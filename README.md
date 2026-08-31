@@ -2,7 +2,7 @@
 
 [English](README.md) | [简体中文](README_ZH_CN.md)
 
-Twinkle Image is a self-hosted AI image and video creation workspace derived from Nova Image Studio. It combines image generation and editing, plugin-driven video generation, agent-assisted workflows, UI recreation, GIF production, prompt management, and an infinite canvas in a Next.js frontend with a Node.js task backend.
+Twinkle Image is a self-hosted AI image-creation workspace derived from Nova Image Studio. It combines image generation and editing, agent-assisted workflows, UI recreation, GIF production, prompt management, and an infinite canvas in a Next.js frontend with a Node.js task backend.
 
 > [!IMPORTANT]
 > This repository is an independent community fork of [Nova Image Studio](https://github.com/tianjiangqiji/nova-image-studio). It is not an official Nova Image Studio release and is not endorsed by the upstream maintainer. Report fork-specific issues to [bendangmi/Twinkle-Image](https://github.com/bendangmi/Twinkle-Image/issues).
@@ -11,7 +11,7 @@ Twinkle Image is a self-hosted AI image and video creation workspace derived fro
 
 | Item | Current value |
 | --- | --- |
-| Fork version | `3.3.0` |
+| Fork version | `3.3.1` |
 | Upstream baseline | `v3.3.0` (`7041092`) |
 | Maintained branch | `main` |
 | Fork repository | `https://github.com/bendangmi/Twinkle-Image.git` |
@@ -37,7 +37,6 @@ Twinkle Image is a self-hosted AI image and video creation workspace derived fro
 - UI image slicing and browser-previewable web recreation.
 - Reverse-prompt generation from uploaded images.
 - GIF frame generation, grid composition, and browser-side encoding.
-- Plugin-driven video generation with concurrent subtasks, progress polling, split previews, and pricing metadata.
 - Infinite canvas, prompt gallery, task history, and backup/export workflows.
 
 Features not identified as Twinkle-specific may originate entirely from Nova Image Studio or its integrated projects. Keep that attribution in derivative release notes.
@@ -47,14 +46,13 @@ Features not identified as Twinkle-specific may originate entirely from Nova Ima
 | Entry | Purpose |
 | --- | --- |
 | `/` | Public Twinkle Image landing page; Simplified Chinese by default |
-| `/studio` | Main video/image creation workspace |
+| `/studio` | Main image-creation workspace |
 | Text to image | Generate one or more images from prompts |
 | Image to image | Transform, edit, or stylize references |
 | Agent | Plan and execute assisted multi-turn creation |
 | UI design | Slice a UI image and recreate a previewable web project; wide-screen workflow |
 | Reverse prompt | Produce a streamed description or prompt from an image |
 | GIF | Generate frames and encode an animated result |
-| Video | Run installed generation plugins with schema-driven controls and concurrent subtask progress |
 | Infinite canvas | Arrange generated and imported assets spatially |
 
 Availability depends on the selected protocol and model capability profile. Mask-based editing requires an OpenAI-compatible `/v1/images/edits` implementation; a compatible protocol name alone does not guarantee that every endpoint or parameter is supported.
@@ -65,11 +63,11 @@ Availability depends on the selected protocol and model capability profile. Mask
 Browser
   └── Next.js 16 / React 19 frontend
         ├── browser workspace state and IndexedDB history
-        └── Node.js API, task queue, and plugin runtime
+        └── Node.js API and task queue
               ├── SQLite task metadata
               ├── local generated-media directory
               ├── WebSocket status updates with HTTP polling fallback
-              └── user-configured model providers, Twinkle Model, or installed plugins
+              └── user-configured model providers or Twinkle Model
 ```
 
 Text model protocols include OpenAI Responses, OpenAI Chat Completions, Anthropic Messages, and Google Gemini-compatible flows. Image protocol behavior is configured per model. Test each provider with non-sensitive inputs before relying on it.
@@ -79,11 +77,11 @@ Text model protocols include OpenAI Responses, OpenAI Chat Completions, Anthropi
 ```text
 .
 ├── frontend/                    Next.js application and Vitest tests
-├── backend/                     Node.js API, task queue, SQLite, media storage, and plugins
+├── backend/                     Node.js API, task queue, SQLite, and media storage
 ├── data/                        Local persistent data when created
 ├── deploy/                      Offline deployment bundle and image scripts
 ├── scripts/                     Packaging and local-start helpers
-├── docs/                        Guides, screenshots, and plugin development documentation
+├── docs/                        Guides and screenshots
 ├── Dockerfile                   Production image
 ├── docker-compose.yml           Single-service deployment profile
 └── 本地启动与镜像打包教程.md       Windows-oriented local and packaging guide
@@ -168,7 +166,6 @@ Run the configured checks before submitting changes:
 npm run lint
 npm run test:run
 npm --prefix backend test
-npm --prefix backend run plugins:verify
 npm run build
 ```
 

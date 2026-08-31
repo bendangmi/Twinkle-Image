@@ -1,6 +1,6 @@
 {
   "name": "twinkle-image-frontend",
-  "version": "3.3.0",
+  "version": "3.3.1",
   "private": true,
   "description": "Twinkle Image 前端 - Next.js 应用",
   "scripts": {

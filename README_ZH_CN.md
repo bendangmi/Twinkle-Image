@@ -2,7 +2,7 @@
 
 [English](README.md) | [简体中文](README_ZH_CN.md)
 
-Twinkle Image 是基于 Nova Image Studio 二次开发的自托管 AI 视频/图片创作工作台，以 Next.js 前端和 Node.js 任务后端整合图片生成与编辑、插件化视频生成、Agent 辅助创作、UI 复刻、GIF 制作、提示词管理和无限画布。
+Twinkle Image 是基于 Nova Image Studio 二次开发的自托管 AI 图片创作工作台，以 Next.js 前端和 Node.js 任务后端整合图片生成与编辑、Agent 辅助创作、UI 复刻、GIF 制作、提示词管理和无限画布。
 
 > [!IMPORTANT]
 > 本仓库是 [Nova Image Studio](https://github.com/tianjiangqiji/nova-image-studio) 的独立社区二开，不是 Nova Image Studio 官方版本，也不代表获得上游维护者认可。二开特有问题请提交到 [bendangmi/Twinkle-Image](https://github.com/bendangmi/Twinkle-Image/issues)。
@@ -11,7 +11,7 @@ Twinkle Image 是基于 Nova Image Studio 二次开发的自托管 AI 视频/图
 
 | 项目 | 当前值 |
 | --- | --- |
-| 二开版本 | `3.3.0` |
+| 二开版本 | `3.3.1` |
 | 上游基线 | `v3.3.0`（`7041092`） |
 | 维护分支 | `main` |
 | 二开仓库 | `https://github.com/bendangmi/Twinkle-Image.git` |
@@ -37,7 +37,6 @@ Twinkle Image 是基于 Nova Image Studio 二次开发的自托管 AI 视频/图
 - UI 图片切片与可在浏览器预览的网页复刻。
 - 从上传图片生成反向提示词。
 - GIF 帧生成、网格合成与浏览器端编码。
-- 插件化视频生成、并发子任务、进度轮询、分屏预览与价格元数据。
 - 无限画布、提示词广场、任务历史与备份/导出流程。
 
 未明确标记为 Twinkle 二开的能力可能完全来自 Nova Image Studio 或其集成项目。派生版本发布说明必须保留相关署名。
@@ -47,14 +46,13 @@ Twinkle Image 是基于 Nova Image Studio 二次开发的自托管 AI 视频/图
 | 入口 | 用途 |
 | --- | --- |
 | `/` | Twinkle Image 公共首页，默认简体中文 |
-| `/studio` | 视频/图片创作主工作区 |
+| `/studio` | 图片创作主工作区 |
 | 文生图 | 根据提示词生成一张或多张图片 |
 | 图生图 | 转换、编辑或风格化参考图片 |
 | Agent | 规划并执行多轮辅助创作 |
 | UI 设计 | 切分 UI 图片并复刻为可预览网页，适合宽屏 |
 | 反向提示词 | 从图片流式生成描述或提示词 |
 | GIF | 生成帧并编码动画结果 |
-| 视频 | 通过已安装插件运行结构化生成流程并查看并发子任务进度 |
 | 无限画布 | 空间化组织生成和导入素材 |
 
 功能是否可用取决于所选协议与模型能力配置。遮罩编辑要求供应商实现 OpenAI 兼容的 `/v1/images/edits`；协议名称兼容不代表每个端点和参数都兼容。
@@ -65,11 +63,11 @@ Twinkle Image 是基于 Nova Image Studio 二次开发的自托管 AI 视频/图
 浏览器
   └── Next.js 16 / React 19 前端
         ├── 浏览器工作区状态与 IndexedDB 历史
-        └── Node.js API、任务队列与插件运行时
+        └── Node.js API 与任务队列
               ├── SQLite 任务元数据
               ├── 本地生成媒体目录
               ├── WebSocket 状态更新与 HTTP 轮询回退
-              └── 用户配置的模型供应商、Twinkle Model 或已安装插件
+              └── 用户配置的模型供应商或 Twinkle Model
 ```
 
 文本模型协议包括 OpenAI Responses、OpenAI Chat Completions、Anthropic Messages 与 Google Gemini 兼容流程；图片协议行为按模型配置。依赖任何供应商前，都应先用非敏感输入进行实际测试。
@@ -79,11 +77,11 @@ Twinkle Image 是基于 Nova Image Studio 二次开发的自托管 AI 视频/图
 ```text
 .
 ├── frontend/                    Next.js 应用与 Vitest 测试
-├── backend/                     Node.js API、任务队列、SQLite、媒体存储与插件
+├── backend/                     Node.js API、任务队列、SQLite 与媒体存储
 ├── data/                        创建后的本地持久化数据
 ├── deploy/                      离线部署包与镜像脚本
 ├── scripts/                     打包与本地启动工具
-├── docs/                        指南、截图与插件开发文档
+├── docs/                        指南与截图
 ├── Dockerfile                   生产镜像
 ├── docker-compose.yml           单服务部署组合
 └── 本地启动与镜像打包教程.md       Windows 本地与打包指南
@@ -168,7 +166,6 @@ Compose 还会挂载 `blacklist.json`、`prompts.json` 与 `.env`。必须确认
 npm run lint
 npm run test:run
 npm --prefix backend test
-npm --prefix backend run plugins:verify
 npm run build
 ```
 

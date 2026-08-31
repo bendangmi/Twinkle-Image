@@ -140,7 +140,7 @@ export const WorkspaceHeader = forwardRef<WorkspaceHeaderRef, WorkspaceHeaderPro
           <div className="hidden min-w-0 sm:block">
             <span className="workspace-kicker">Visual intelligence</span>
             <h1 className="truncate text-xl font-semibold leading-tight">Twinkle Image</h1>
-            <p className="mt-0.5 text-xs text-muted-foreground">AI 视频/图像创作工作台</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">AI 图像创作工作台</p>
           </div>
         </div>
 

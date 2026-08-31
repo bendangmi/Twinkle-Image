@@ -1,6 +1,6 @@
 services:
   twinkle-image:
-    image: twinkle-image:3.3.0
+    image: twinkle-image:3.3.1
     container_name: twinkle-image
     ports:
       - "${TWINKLE_PORT:-46311}:3000"
@@ -15,5 +15,4 @@ services:
       - ./blacklist.json:/app/backend/blacklist.json
       - ./prompts.json:/app/backend/prompts.json
       - ./.env:/app/.env
-      - ./backend/plugins:/app/backend/plugins
     restart: unless-stopped

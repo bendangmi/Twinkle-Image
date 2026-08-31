@@ -17,13 +17,6 @@ const BACKEND_FILES = [
   { src: path.join(BACKEND_DIR, 'prompts.json'), dest: 'prompts.json' },
 ];
 
-// 后端目录列表。视频插件运行时与已安装的插件包都要进部署包——
-// 少了 plugin-runtime 服务直接起不来，少了 plugins 视频 tab 会变成「未安装插件」。
-const BACKEND_DIRS = [
-  { src: path.join(BACKEND_DIR, 'plugin-runtime'), dest: 'plugin-runtime' },
-  { src: path.join(BACKEND_DIR, 'plugins'), dest: 'plugins' },
-];
-
 // 前端构建产物目录
 const FRONTEND_OUT_DIR = { src: path.join(FRONTEND_DIR, 'out'), dest: 'out' };
 
@@ -47,17 +40,6 @@ for (const file of BACKEND_FILES) {
     continue;
   }
   fs.copyFileSync(file.src, path.join(TEMP_BACKEND, file.dest));
-}
-for (const dir of BACKEND_DIRS) {
-  if (!fs.existsSync(dir.src)) {
-    console.warn(`Warning: ${dir.dest}/ not found, skipping.`);
-    continue;
-  }
-  // fixtures 只用于开发期自检，不必进部署包
-  fs.cpSync(dir.src, path.join(TEMP_BACKEND, dir.dest), {
-    recursive: true,
-    filter: src => !src.split(/[\\/]/).includes('fixtures'),
-  });
 }
 
 // Copy frontend out/ folder into temp/frontend/out/
