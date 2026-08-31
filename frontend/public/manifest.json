@@ -1,8 +1,8 @@
 {
     "id": "/",
-    "name": "Twinkle Image - AI 视觉工作台",
+    "name": "Twinkle Image - AI 视频/图像工作台",
     "short_name": "Twinkle Image",
-    "description": "AI 图像创作、素材管理与智能工作流",
+    "description": "AI 视频/图像创作、素材管理与智能工作流",
     "start_url": "/",
     "display": "standalone",
     "display_override": ["window-controls-overlay", "standalone"],

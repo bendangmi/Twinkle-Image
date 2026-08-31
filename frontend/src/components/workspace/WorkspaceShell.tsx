@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { ImageGenerationWorkbench } from '@/components/ImageGenerationWorkbench';
+import { PluginWorkbench } from '@/components/plugin/PluginWorkbench';
+import { PluginHistoryList } from '@/components/plugin/PluginHistoryList';
 import { ReversePromptForm } from '@/components/ReversePromptForm';
 import { GifGenerationWorkspace } from '@/components/GifGenerationWorkspace';
 import { AgentChatWorkspace } from '@/components/agent/AgentChatWorkspace';
@@ -11,7 +13,7 @@ import { AssetsWorkspace } from '@/components/assets/AssetsWorkspace';
 import { CanvasWorkspace } from '@/components/canvas/CanvasWorkspace';
 import { SliceWorkspace } from '@/components/slice/SliceWorkspace';
 import { PromptGallery } from '@/components/PromptGallery';
-import { SettingsModal } from '@/components/SettingsModal';
+import { SettingsModal, type SettingsTab } from '@/components/SettingsModal';
 import { MissingApiKeyDialog } from '@/components/MissingApiKeyDialog';
 import { useQueueStatus } from '@/hooks/useQueueStatus';
 import { useWideMode } from '@/hooks/useWideMode';
@@ -37,6 +39,7 @@ import { getNovaTask } from '@/lib/ccode-task-client';
 import { finalizeCompletedServerTask } from '@/lib/workspace-task-service';
 import { classifyTaskFailure } from '@/lib/task-failure';
 import type { RefImageData, StoredJob } from '@/lib/job-store';
+import type { PluginJob } from '@/lib/plugin-job-store';
 import { subscribeImageActionToasts, subscribeUseAsImageReference } from '@/lib/image-actions';
 import {
   submitImageToImage,
@@ -50,9 +53,16 @@ export function WorkspaceShell() {
   const queueStatus = useQueueStatus();
   const { wideMode, toggleWideMode } = useWideMode();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** 设置弹层打开时停在哪一页。插件凭据的提示条要直达插件页，其余入口都回到模型配置。 */
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('models');
+  const openSettings = useCallback((tab: SettingsTab = 'models') => {
+    setSettingsTab(tab);
+    setSettingsOpen(true);
+  }, []);
   const [missingApiKeyDialogOpen, setMissingApiKeyDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'image-generation' | 'agent' | 'canvas' | 'image-to-slice' | 'assets' | 'reverse-prompt' | 'gif' | 'prompt-gallery'>('agent');
+  const [activeTab, setActiveTab] = useState<'image-generation' | 'video-generation' | 'agent' | 'canvas' | 'image-to-slice' | 'assets' | 'reverse-prompt' | 'gif' | 'prompt-gallery'>('agent');
+  const [videoInitialJob, setVideoInitialJob] = useState<PluginJob | null>(null);
   const [generationHistoryFilter, setGenerationHistoryFilter] = useState<GenerationHistoryFilter>('all');
   const [generationClearScope, setGenerationClearScope] = useState<HistoryClearScope | null>(null);
   const [referenceDraft, setReferenceDraft] = useState<{ id: number; refImages: RefImageData[]; prompt?: string } | null>(null);
@@ -232,7 +242,7 @@ export function WorkspaceShell() {
             queueStatus={queueStatus}
             wideMode={wideMode}
             onToggleWideMode={toggleWideMode}
-            onOpenSettings={() => setSettingsOpen(true)}
+            onOpenSettings={() => openSettings()}
             onLogoClick={promptGallery.handlePromptGalleryEntry}
             sidebarMode={wideMode}
           />
@@ -261,7 +271,7 @@ export function WorkspaceShell() {
                   <div className="min-w-0">
                     <span className="workspace-kicker block">Visual intelligence</span>
                     <h2 className="truncate text-sm font-semibold leading-tight">Twinkle Image</h2>
-                    <p className="truncate text-[10px] leading-tight text-muted-foreground">AI 图像创作工作台</p>
+                    <p className="truncate text-[10px] leading-tight text-muted-foreground">AI 视频/图像创作工作台</p>
                   </div>
                 </button>
               )}
@@ -300,7 +310,7 @@ export function WorkspaceShell() {
                       {wideMode ? <PanelLeftClose className="size-4 shrink-0" /> : <PanelLeftOpen className="size-4 shrink-0" />}
                       {wideMode ? '退出宽屏' : '宽屏'}
                     </Button>
-                    <Button variant="outline" size="sm" className="w-full justify-start gap-2 px-3 text-xs" onClick={() => setSettingsOpen(true)}>
+                    <Button variant="outline" size="sm" className="w-full justify-start gap-2 px-3 text-xs" onClick={() => openSettings()}>
                       <Settings className="size-4 shrink-0" />
                       设置
                     </Button>
@@ -352,7 +362,7 @@ export function WorkspaceShell() {
                       onSubmitText={data => void submitTextToImage(data, submitActions, handleSubmitError)}
                       onSubmitImage={data => void submitImageToImage(data, submitActions, handleSubmitError)}
                       disabled={!workspace.hasApiKey}
-                      onConfigureApiKey={() => setSettingsOpen(true)}
+                      onConfigureApiKey={() => openSettings()}
                       onDraftConsumed={handleImageDraftConsumed}
                       initialData={generationInitialData}
                       referenceDraft={referenceDraft}
@@ -392,14 +402,36 @@ export function WorkspaceShell() {
                 <AgentChatWorkspace
                   wideMode={wideMode}
                   disabled={!workspace.hasApiKey}
-                  onConfigureApiKey={() => setSettingsOpen(true)}
+                  onConfigureApiKey={() => openSettings()}
                 />
+              </TabsContent>
+
+              <TabsContent value="video-generation" keepMounted className={cn(wideMode ? 'space-y-6 xl:flex xl:min-h-0 xl:space-y-0' : 'space-y-3')}>
+                <div className={cn(wideMode ? 'grid items-start gap-5 xl:h-full xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(460px,0.95fr)_minmax(0,1.35fr)] xl:items-stretch' : 'space-y-3')}>
+                  <div className={cn(wideMode && 'xl:h-full xl:min-h-0 xl:overflow-y-auto xl:pr-1')}>
+                    <PluginWorkbench
+                      wideMode={wideMode}
+                      onConfigureCredential={() => openSettings('plugins')}
+                      showToast={showToast}
+                      initialJob={videoInitialJob}
+                    />
+                  </div>
+                  <PluginHistoryList
+                    wideMode={wideMode}
+                    active={activeTab === 'video-generation'}
+                    showToast={showToast}
+                    onReuseParams={job => {
+                      setVideoInitialJob(job);
+                      setActiveTab('video-generation');
+                    }}
+                  />
+                </div>
               </TabsContent>
 
               <TabsContent value="canvas" keepMounted className={cn('min-h-0', wideMode ? 'xl:flex xl:min-h-0 xl:flex-1 xl:flex-col' : 'space-y-6')}>
                 <CanvasWorkspace
                   wideMode={wideMode}
-                  onConfigureApiKey={() => setSettingsOpen(true)}
+                  onConfigureApiKey={() => openSettings()}
                   onEnableWideMode={() => { if (!wideMode) toggleWideMode(); }}
                   showToast={showToast}
                   showPromptGallery={promptGallery.showPromptGallery}
@@ -409,7 +441,7 @@ export function WorkspaceShell() {
               <TabsContent value="image-to-slice" keepMounted className={cn(wideMode ? 'space-y-6 xl:min-h-0 xl:flex xl:flex-col' : 'space-y-6')}>
                 <SliceWorkspace
                   wideMode={wideMode}
-                  onConfigureApiKey={() => setSettingsOpen(true)}
+                  onConfigureApiKey={() => openSettings()}
                   onEnableWideMode={() => { if (!wideMode) toggleWideMode(); }}
                   showToast={showToast}
                 />
@@ -423,7 +455,7 @@ export function WorkspaceShell() {
                 <ReversePromptForm
                   wideMode={wideMode}
                   disabled={!workspace.hasApiKey}
-                  onConfigureApiKey={() => setSettingsOpen(true)}
+                  onConfigureApiKey={() => openSettings()}
                 />
               </TabsContent>
 
@@ -431,7 +463,7 @@ export function WorkspaceShell() {
                 <GifGenerationWorkspace
                   wideMode={wideMode}
                   hasApiKey={workspace.hasApiKey}
-                  onConfigureApiKey={() => setSettingsOpen(true)}
+                  onConfigureApiKey={() => openSettings()}
                   onError={message => showToast(message, 'error')}
                   showToast={showToast}
                 />
@@ -453,12 +485,13 @@ export function WorkspaceShell() {
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         onApiKeyChange={workspace.setHasApiKey}
+        initialTab={settingsTab}
       />
 
       <MissingApiKeyDialog
         open={missingApiKeyDialogOpen}
         onOpenChange={setMissingApiKeyDialogOpen}
-        onConfigure={() => setSettingsOpen(true)}
+        onConfigure={() => openSettings()}
       />
 
       <PromptGalleryAccessDialog

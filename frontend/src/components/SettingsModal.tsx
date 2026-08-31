@@ -13,6 +13,7 @@ import {
   LoaderCircle,
   LogIn,
   LogOut,
+  Package,
   Plus,
   RefreshCw,
   Save,
@@ -30,6 +31,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PluginsSettings } from '@/components/settings/PluginsSettings';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -82,10 +84,15 @@ import {
   type TwinkleModelSession,
 } from '@/lib/twinkle-model';
 
+/** 设置弹层的页签。调用方可以指定打开时落在哪一页。 */
+export type SettingsTab = 'models' | 'plugins' | 'backup' | 'about';
+
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onApiKeyChange?: (hasKey: boolean) => void;
+  /** 打开时默认停在哪一页，缺省「模型配置」 */
+  initialTab?: SettingsTab;
 }
 
 function cloneImageModel(model: ImageModelConfig): ImageModelConfig {
@@ -168,7 +175,16 @@ function normalizeDefaults(
   };
 }
 
-export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModalProps) {
+export function SettingsModal({ isOpen, onClose, onApiKeyChange, initialTab = 'models' }: SettingsModalProps) {
+  const [tab, setTab] = useState<SettingsTab>(initialTab);
+  // 每次打开都回到调用方指定的那一页：从「插件凭据未配置」的提示条点进来要直达插件页。
+  // 用「渲染期按 prop 变化调整 state」而不是 effect，避免先渲染出模型页再跳一帧。
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) setTab(initialTab);
+  }
+
   const [imageModels, setImageModels] = useState<ImageModelConfig[]>([]);
   const [textModels, setTextModels] = useState<TextModelConfig[]>([]);
   const [defaults, setDefaults] = useState<DefaultModels>(DEFAULT_DEFAULTS);
@@ -486,8 +502,12 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
     setBackupError(null);
     setBackupSuccess(null);
     try {
-      await importAllData(file, (progress) => setBackupProgress(progress));
-      setBackupSuccess('数据已成功导入，页面将在 2 秒后刷新。');
+      const warnings = await importAllData(file, (progress) => setBackupProgress(progress));
+
+      setBackupSuccess(warnings.length > 0
+        ? `数据已导入，但有 ${warnings.length} 项提示：${warnings.join('；')}。页面将在 2 秒后刷新...`
+        : '数据已成功导入！页面将在 2 秒后刷新以应用更改...');
+
       setTimeout(() => window.location.reload(), 2000);
     } catch (err) {
       setBackupError(err instanceof Error ? err.message : '导入失败');
@@ -528,11 +548,15 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
           <DialogDescription>按模型分别配置协议、URL 和 API Key。至少完成一个图片模型和一个文本模型后，外部功能才会解锁。</DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="models" className="min-h-0 flex-1 gap-0">
+        <Tabs value={tab} onValueChange={value => setTab(value as SettingsTab)} className="min-h-0 flex-1 gap-0">
           <TabsList className="w-full rounded-none border-b bg-transparent h-auto p-0">
             <TabsTrigger value="models" className="gap-2 rounded-none border-b-2 border-transparent data-active:border-primary data-active:bg-transparent data-active:shadow-none px-4 py-3">
               <ImageIcon className="w-4 h-4" />
               模型配置
+            </TabsTrigger>
+            <TabsTrigger value="plugins" className="gap-2 rounded-none border-b-2 border-transparent data-active:border-primary data-active:bg-transparent data-active:shadow-none px-4 py-3">
+              <Package className="w-4 h-4" />
+              插件
             </TabsTrigger>
             <TabsTrigger value="backup" className="gap-2 rounded-none border-b-2 border-transparent data-active:border-primary data-active:bg-transparent data-active:shadow-none px-4 py-3">
               <Database className="w-4 h-4" />
@@ -979,6 +1003,10 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
             </div>
           </TabsContent>
 
+          <TabsContent value="plugins" className="min-h-0 overflow-y-auto p-4 sm:p-6 space-y-6 mt-0">
+            <PluginsSettings />
+          </TabsContent>
+
           <TabsContent value="backup" className="min-h-0 overflow-y-auto p-4 sm:p-6 space-y-6 mt-0">
             <div className="space-y-4">
               <div className="space-y-2">
@@ -1035,7 +1063,7 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
 
           <TabsContent value="about" className="min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4 mt-0">
             <div className="space-y-4 text-sm">
-              <h3 className="text-lg font-medium">Nova Image <span className="text-xs text-muted-foreground font-normal">v{process.env.NEXT_PUBLIC_APP_VERSION}</span></h3>
+              <h3 className="text-lg font-medium">Twinkle Image <span className="text-xs text-muted-foreground font-normal">v{process.env.NEXT_PUBLIC_APP_VERSION}</span></h3>
               <p className="text-sm text-muted-foreground">
                 项目地址：
                 {' '}

@@ -10,6 +10,8 @@
 .agents/
 .codegraph/
 .codex-merge-backup/
+docs/
+*.md
 data/
 deploy/*.tar
 deploy/*.tar.sha256
