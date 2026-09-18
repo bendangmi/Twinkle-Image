@@ -8,6 +8,7 @@ import {
 } from '@/lib/nova-proxy-text';
 import type { TextProviderProtocol } from '@/lib/nova-text-protocol';
 import { readSseStream } from '@/lib/sse-stream-parser';
+import { readModelHttpError } from '@/lib/model-error';
 
 const OPTIMIZE_MODEL = 'gpt-5.5';
 const OPTIMIZE_TIMEOUT_MS = 30_000;
@@ -212,7 +213,7 @@ async function runAttempt(
     });
 
     if (!response.ok) {
-      throw await readHttpError(response);
+      throw await readModelHttpError(response);
     }
     if (!response.body) {
       throw new Error('响应没有可读流');
@@ -248,27 +249,6 @@ async function runAttempt(
   } finally {
     window.clearTimeout(timeoutId);
   }
-}
-
-async function readHttpError(response: Response): Promise<Error> {
-  let detail = '';
-  try {
-    detail = await response.text();
-  } catch {
-    // ignore
-  }
-  if (detail) {
-    try {
-      const parsed = JSON.parse(detail);
-      const message = parsed?.error?.message || parsed?.error || parsed?.message;
-      if (typeof message === 'string' && message.length > 0) {
-        return new Error(`${response.status} ${response.statusText}: ${message}`);
-      }
-    } catch {
-      // not JSON
-    }
-  }
-  return new Error(`${response.status} ${response.statusText}${detail ? `: ${detail.slice(0, 500)}` : ''}`);
 }
 
 function isRetryable(error: unknown): boolean {

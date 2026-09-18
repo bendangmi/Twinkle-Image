@@ -38,7 +38,18 @@ describe('applyTwinkleModelKeys', () => {
   it('creates the requested templates and makes them the defaults', () => {
     const configured = applyTwinkleModelKeys(registry, 'system-key');
 
-    expect(configured.imageModels.slice(0, 2)).toMatchObject([
+    expect(configured.imageModels.slice(0, 3)).toMatchObject([
+      {
+        protocol: 'openai',
+        name: 'GPT Image 2.5',
+        modelId: 'gpt-image-2.5',
+        apiKey: 'system-key',
+        baseUrl: 'https://st.smart-agi.com',
+        builtinPreset: 'gpt-image-2',
+        maxRefImages: 16,
+        maxOutputSize: '4K',
+        supportsAdvancedParams: true,
+      },
       {
         protocol: 'openai',
         name: 'GPT Image 2',

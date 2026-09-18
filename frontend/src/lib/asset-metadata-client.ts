@@ -6,6 +6,7 @@ import {
   extractTextOutput,
 } from '@/lib/nova-proxy-text';
 import type { TextProviderProtocol } from '@/lib/nova-text-protocol';
+import { readModelHttpError } from '@/lib/model-error';
 
 const ASSET_METADATA_MODEL = 'gpt-5.5';
 
@@ -82,14 +83,7 @@ export async function generateAssetMetadata(input: GenerateAssetMetadataInput): 
   });
 
   if (!response.ok) {
-    let message = `HTTP ${response.status}`;
-    try {
-      const data = await response.json();
-      message = data?.error?.message || data?.message || message;
-    } catch {
-      // ignore
-    }
-    throw new Error(message);
+    throw await readModelHttpError(response);
   }
 
   const text = extractTextOutput(protocol, await response.json());

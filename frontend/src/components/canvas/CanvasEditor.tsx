@@ -48,6 +48,7 @@ import { AiTextGenerateDialog } from "./components/canvas-ai-text-dialog";
 import { streamPromptOptimize, type StreamPromptOptimizeHandle, type OptimizeImageInput } from "@/lib/prompt-optimize-client";
 import { requireDefaultConfiguredTextModel } from "@/lib/model-endpoints";
 import { buildSimpleProxyTextRequestBody, handleSimpleTextStreamEvent } from "@/lib/nova-proxy-text";
+import { readModelHttpError } from "@/lib/model-error";
 import { readSseStream } from "@/lib/sse-stream-parser";
 import { MODEL_IMAGE_LIMITS } from "@/lib/gemini-config";
 import { normalizeModel } from "@/lib/model-capabilities";
@@ -1672,7 +1673,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
         signal: controller.signal,
       });
 
-      if (!response.ok) throw new Error(`生成失败 (${response.status})`);
+      if (!response.ok) throw await readModelHttpError(response);
       if (!response.body) throw new Error("响应没有可读流");
 
       let accumulated = "";
@@ -1774,7 +1775,7 @@ export function CanvasEditor({ projectId, onBack, onRequireApiKey, showToast, sh
           signal: controller.signal,
         });
 
-        if (!response.ok) throw new Error(`生成失败 (${response.status})`);
+        if (!response.ok) throw await readModelHttpError(response);
         if (!response.body) throw new Error("响应没有可读流");
 
         let accumulated = "";

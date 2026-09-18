@@ -19,6 +19,7 @@ import { getBlob } from '@/lib/slice-db';
 import { requireSliceTextModel, type SliceTextModel } from '@/lib/slice-model-config';
 import type { SliceWorkspaceDraft, WebAgentMessage } from '@/lib/slice-types';
 import type { TextProviderProtocol } from '@/lib/nova-text-protocol';
+import { readModelHttpError } from '@/lib/model-error';
 import {
   createIdleTimeoutSignal,
   isRetryableAgentError,
@@ -302,7 +303,7 @@ async function requestWithRetry(params: {
         signal: idle.signal,
       });
       if (!response.ok) {
-        throw await readWebAgentHttpError(response);
+        throw await readModelHttpError(response);
       }
 
       let activeEditPath: string | null = null;
@@ -351,33 +352,6 @@ async function requestWithRetry(params: {
 }
 
 /** 保留供应商返回的校验详情，避免所有协议错误都只显示笼统的 400。 */
-async function readWebAgentHttpError(response: Response): Promise<Error> {
-  const raw = await response.text().catch(() => '');
-  let detail = raw.trim();
-  if (detail) {
-    try {
-      const parsed: unknown = JSON.parse(detail);
-      if (parsed && typeof parsed === 'object') {
-        const record = parsed as {
-          error?: { message?: unknown } | string;
-          message?: unknown;
-        };
-        const message = typeof record.error === 'string'
-          ? record.error
-          : record.error && typeof record.error.message === 'string'
-            ? record.error.message
-            : typeof record.message === 'string'
-              ? record.message
-              : '';
-        if (message) detail = message;
-      }
-    } catch {
-      // 非 JSON 响应直接使用原文。
-    }
-  }
-  return new Error(`${response.status} ${response.statusText}${detail ? `: ${detail.slice(0, 500)}` : ''}`);
-}
-
 /** 循环因上下文塞满而中止时，给用户的说明文案 */
 export function describeStopReason(reason: WebAgentStopReason): string | null {
   if (reason === 'context-full') {

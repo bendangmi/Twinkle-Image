@@ -107,7 +107,13 @@ try {
     Update-Text (Join-Path $deployDir 'DEPLOY.md') $currentVersion $targetVersion
     Update-Text (Join-Path $rootDir 'README.md') $currentVersion $targetVersion
     Update-Text (Join-Path $rootDir 'README_ZH_CN.md') $currentVersion $targetVersion
-    Update-Text (Join-Path $rootDir '本地启动与镜像打包教程.md') $currentVersion $targetVersion
+    $localGuidePath = Get-ChildItem -LiteralPath $rootDir -File -Filter '*.md' |
+      Where-Object { ([System.IO.File]::ReadAllText($_.FullName)).Contains('docker load -i .\deploy\twinkle-image-') } |
+      Select-Object -First 1 -ExpandProperty FullName
+    if (-not $localGuidePath) {
+      throw 'Could not locate the local Docker packaging guide.'
+    }
+    Update-Text $localGuidePath $currentVersion $targetVersion
   }
 
   Write-Host "Version:  $currentVersion -> $targetVersion"

@@ -11,7 +11,7 @@ Twinkle Image is a self-hosted AI image-creation workspace derived from Nova Ima
 
 | Item | Current value |
 | --- | --- |
-| Fork version | `3.3.1` |
+| Fork version | `3.3.2` |
 | Upstream baseline | `v3.3.0` (`7041092`) |
 | Maintained branch | `main` |
 | Fork repository | `https://github.com/bendangmi/Twinkle-Image.git` |

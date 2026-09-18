@@ -24,6 +24,7 @@ import {
   sanitizeGeneratedSvg,
   SvgValidationError,
 } from '@/lib/slice-vectorize';
+import { readModelHttpError } from '@/lib/model-error';
 
 /** 图片编辑代理端点。凭据走自定义头，body 是原样透传的 multipart。 */
 const NOVA_PROXY_IMAGE_EDIT_ENDPOINT = '/api/nova/proxy/image-edit';
@@ -53,7 +54,7 @@ async function postImageEdit(
     signal,
   });
   if (!response.ok) {
-    throw await readHttpError(response);
+    throw await readModelHttpError(response);
   }
   return await readImageResponse(response);
 }
@@ -276,7 +277,7 @@ export async function requestSliceDecomposition(params: {
       signal,
     });
     if (!response.ok) {
-      throw await readHttpError(response);
+      throw await readModelHttpError(response);
     }
     const streamResult = await readNovaAgentTextStream(response, protocol, signal, onDelta);
     const text = streamResult.text;
@@ -741,7 +742,7 @@ export async function requestAiSvg(params: {
       signal,
     });
     if (!response.ok) {
-      throw await readHttpError(response);
+      throw await readModelHttpError(response);
     }
     const streamResult = await readNovaAgentTextStream(response, protocol, signal, onDelta);
     if (getNovaAgentIncompleteReason(streamResult.finalPayload) === 'max_output_tokens') {
@@ -888,25 +889,3 @@ function base64ToBlob(base64: string, mimeType: string): Blob {
 }
 
 /** 读取 HTTP 错误响应并构造 Error，优先解析 JSON 中的 error.message */
-async function readHttpError(response: Response): Promise<Error> {
-  let detail = '';
-  try {
-    detail = await response.text();
-  } catch {
-    /* ignore */
-  }
-  if (detail) {
-    try {
-      const parsed = JSON.parse(detail);
-      const message = parsed?.error?.message || parsed?.error || parsed?.message;
-      if (typeof message === 'string' && message.length > 0) {
-        return new Error(`${response.status} ${response.statusText}: ${message}`);
-      }
-    } catch {
-      /* not JSON */
-    }
-  }
-  return new Error(
-    `${response.status} ${response.statusText}${detail ? `: ${detail.slice(0, 500)}` : ''}`,
-  );
-}

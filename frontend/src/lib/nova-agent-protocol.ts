@@ -15,6 +15,7 @@
 
 import { readSseStream } from '@/lib/sse-stream-parser';
 import type { TextProviderProtocol } from '@/lib/nova-text-protocol';
+import { extractUpstreamErrorMessage } from '@/lib/model-error';
 
 /** 后端文本代理端点。四种协议共用，由后端按 protocol 决定上游 URL 与鉴权头。 */
 export const NOVA_PROXY_TEXT_ENDPOINT = '/api/nova/proxy/text';
@@ -622,16 +623,12 @@ export async function readNovaAgentTextStream(
         message?: { content?: string | Array<{ type?: string; text?: string }> };
         finish_reason?: string | null;
       }>;
-      error?: { message?: string };
+      error?: unknown;
     };
     const eventType = record.type || event.event || '';
 
-    if (eventType === 'error' || eventType === 'response.error' || record.error?.message) {
-      throw new Error(
-        record.error?.message
-        || (typeof record.message === 'string' ? record.message : '')
-        || '模型返回错误',
-      );
+    if (eventType === 'error' || eventType === 'response.error' || record.error != null) {
+      throw new Error(extractUpstreamErrorMessage(record) || '模型返回错误');
     }
 
     if (protocol === 'openai-chat-completions') {

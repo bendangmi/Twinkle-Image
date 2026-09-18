@@ -11,7 +11,7 @@ Twinkle Image 是基于 Nova Image Studio 二次开发的自托管 AI 图片创�
 
 | 项目 | 当前值 |
 | --- | --- |
-| 二开版本 | `3.3.1` |
+| 二开版本 | `3.3.2` |
 | 上游基线 | `v3.3.0`（`7041092`） |
 | 维护分支 | `main` |
 | 二开仓库 | `https://github.com/bendangmi/Twinkle-Image.git` |

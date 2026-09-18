@@ -22,6 +22,7 @@ import {
 } from '@/lib/nova-proxy-text';
 import type { TextProviderProtocol } from '@/lib/nova-text-protocol';
 import { readSseStream } from '@/lib/sse-stream-parser';
+import { extractUpstreamErrorMessage, readModelHttpError } from '@/lib/model-error';
 
 const AGENT_GPT_REQUEST_MAX_ATTEMPTS = 3;
 const AGENT_CHAT_ATTEMPT_TIMEOUT_MS = 45_000;
@@ -320,7 +321,7 @@ async function runAgentStream(
   });
 
   if (!response.ok) {
-    throw await readHttpError(response);
+    throw await readModelHttpError(response);
   }
   if (!response.body) {
     throw new Error('响应没有可读流');
@@ -412,7 +413,7 @@ async function requestImageDescription(
   });
 
   if (!response.ok) {
-    throw await readHttpError(response);
+    throw await readModelHttpError(response);
   }
 
   const data = await response.json().catch(() => null);
@@ -523,11 +524,20 @@ function handleAgentStreamEvent(
     fireDone: () => void;
   },
 ) {
+  const errorPayload = payload as Record<string, unknown>;
+  const payloadType = typeof errorPayload.type === 'string' ? errorPayload.type.toLowerCase() : '';
+  if (
+    rawEventType.toLowerCase() === 'error'
+    || payloadType === 'error'
+    || payloadType === 'upstream_error'
+    || payloadType === 'response.error'
+    || errorPayload.error != null
+  ) {
+    throw new Error(extractUpstreamErrorMessage(errorPayload) || '模型返回错误');
+  }
+
   if (protocol === 'openai-chat-completions') {
     const chunk = payload as ChatCompletionsEventEnvelope;
-    if (rawEventType === 'error' || chunk.error?.message) {
-      throw new Error(chunk.error?.message || chunk.message || '模型返回错误');
-    }
     const choice = chunk.choices?.[0];
     if (!choice) return;
 
@@ -620,18 +630,13 @@ function handleAgentStreamEvent(
       state.fireDone();
       return;
     }
-    if (eventType === 'error') {
-      throw new Error(chunk.error?.message || '模型返回错误');
-    }
     return;
   }
 
   if (protocol === 'google-gemini') {
     const chunk = payload as {
       candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean; functionCall?: { name?: string; args?: unknown } }> } }>;
-      error?: { message?: string };
     };
-    if (chunk.error?.message) throw new Error(chunk.error.message);
     for (const candidate of chunk.candidates || []) {
       for (const part of candidate.content?.parts || []) {
         if (typeof part.text === 'string' && part.text.length > 0) {
@@ -713,9 +718,6 @@ function handleAgentStreamEvent(
     state.fireDone();
     return;
   }
-  if (eventType === 'error' || eventType === 'response.error') {
-    throw new Error(chunk.error?.message || chunk.message || '模型返回错误');
-  }
 }
 
 function createAttemptSignal(parentSignal?: AbortSignal): {
@@ -785,27 +787,6 @@ async function runAgentRequestWithRetry<T>(
     }
   }
   throw lastError || new Error('模型请求失败');
-}
-
-async function readHttpError(response: Response): Promise<Error> {
-  let detail = '';
-  try {
-    detail = await response.text();
-  } catch {
-    // ignore
-  }
-  if (detail) {
-    try {
-      const parsed = JSON.parse(detail);
-      const message = parsed?.error?.message || parsed?.error || parsed?.message;
-      if (typeof message === 'string' && message.length > 0) {
-        return new Error(`${response.status} ${response.statusText}: ${message}`);
-      }
-    } catch {
-      // ignore
-    }
-  }
-  return new Error(`${response.status} ${response.statusText}${detail ? `: ${detail.slice(0, 500)}` : ''}`);
 }
 
 function isRetryableAgentError(error: unknown): boolean {

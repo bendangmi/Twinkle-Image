@@ -14,6 +14,7 @@ const TWINKLE_MODEL_PROXY_TIMEOUT_MS = 20_000;
 
 const SESSION_STORAGE_KEY = 'twinkle-model-session';
 const GPT_IMAGE_MODEL_ID = 'default-gpt-image-2';
+const GPT_IMAGE_25_MODEL_ID = 'default-gpt-image-2.5';
 const BANANA_PRO_MODEL_ID = 'default-banana-pro';
 const GPT_TEXT_MODEL_ID = 'default-gpt-5-5';
 
@@ -241,15 +242,22 @@ function upsertImageModel(
   stableId: string,
   presetId: 'gpt-image-2' | 'gemini-3-pro-image-preview',
   apiKey: string,
+  options: {
+    matchPreset?: boolean;
+    name?: string;
+    modelId?: string;
+  } = {},
 ): { model: ImageModelConfig; remaining: ImageModelConfig[] } {
   const preset = BUILTIN_IMAGE_PRESETS[presetId];
-  const existingIndex = models.findIndex(model => model.id === stableId || model.builtinPreset === presetId);
+  const existingIndex = models.findIndex(model => model.id === stableId || (
+    options.matchPreset !== false && model.builtinPreset === presetId
+  ));
   const existing = existingIndex >= 0 ? models[existingIndex] : null;
   const model: ImageModelConfig = {
     id: existing?.id || stableId,
     protocol: preset.protocol,
-    name: preset.name,
-    modelId: preset.modelId,
+    name: options.name || preset.name,
+    modelId: options.modelId || preset.modelId,
     apiKey,
     baseUrl: TWINKLE_MODEL_REQUEST_BASE_URL,
     builtinPreset: preset.id,
@@ -289,23 +297,34 @@ export function applyTwinkleModelKeys(
   key: TwinkleModelDefaultKey,
 ): NovaModelRegistry {
   const gptImage = upsertImageModel(registry.imageModels, GPT_IMAGE_MODEL_ID, 'gpt-image-2', key);
-  const banana = upsertImageModel(gptImage.remaining, BANANA_PRO_MODEL_ID, 'gemini-3-pro-image-preview', key);
+  const gptImage25 = upsertImageModel(
+    gptImage.remaining,
+    GPT_IMAGE_25_MODEL_ID,
+    'gpt-image-2',
+    key,
+    {
+      matchPreset: false,
+      name: 'GPT Image 2.5',
+      modelId: 'gpt-image-2.5',
+    },
+  );
+  const banana = upsertImageModel(gptImage25.remaining, BANANA_PRO_MODEL_ID, 'gemini-3-pro-image-preview', key);
   const text = upsertTextModel(registry.textModels, key);
 
   return {
     ...registry,
-    imageModels: [gptImage.model, banana.model, ...banana.remaining],
+    imageModels: [gptImage25.model, gptImage.model, banana.model, ...banana.remaining],
     textModels: [text.model, ...text.remaining],
     defaults: {
-      textToImage: gptImage.model.id,
-      imageToImage: gptImage.model.id,
+      textToImage: gptImage25.model.id,
+      imageToImage: gptImage25.model.id,
       reversePrompt: text.model.id,
       agent: text.model.id,
       promptOptimize: text.model.id,
       imageDescribe: text.model.id,
       sliceDecomposition: text.model.id,
       sliceReconstruct: text.model.id,
-      sliceImageEdit: gptImage.model.id,
+      sliceImageEdit: gptImage25.model.id,
     },
   };
 }

@@ -17,6 +17,7 @@ import { getSliceRadii } from '@/lib/slice-geometry';
 import type { SliceWorkspaceDraft } from '@/lib/slice-types';
 import type { ReplicaFilePath, ReplicaFiles } from '@/lib/web-agent/vfs';
 import { downloadBlob } from '@/lib/backup-utils';
+import { readModelHttpError } from '@/lib/model-error';
 import { zipSync, strToU8 } from 'fflate';
 
 // ===== 类型 =====
@@ -875,7 +876,7 @@ export async function requestReplicaGeneration(params: {
   });
 
   if (!response.ok) {
-    throw await readHttpError(response);
+    throw await readModelHttpError(response);
   }
 
   const streamResult = await readNovaAgentStream(response, protocol, signal, {
@@ -1061,27 +1062,4 @@ function blobToDataUrl(blob: Blob): Promise<string> {
     reader.onerror = () => reject(new Error('Blob 转 dataUrl 失败'));
     reader.readAsDataURL(blob);
   });
-}
-
-async function readHttpError(response: Response): Promise<Error> {
-  let detail = '';
-  try {
-    detail = await response.text();
-  } catch {
-    /* ignore */
-  }
-  if (detail) {
-    try {
-      const parsed = JSON.parse(detail);
-      const message = parsed?.error?.message || parsed?.error || parsed?.message;
-      if (typeof message === 'string' && message.length > 0) {
-        return new Error(`${response.status} ${response.statusText}: ${message}`);
-      }
-    } catch {
-      /* not JSON */
-    }
-  }
-  return new Error(
-    `${response.status} ${response.statusText}${detail ? `: ${detail.slice(0, 500)}` : ''}`,
-  );
 }

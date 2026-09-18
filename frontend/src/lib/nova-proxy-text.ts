@@ -1,6 +1,7 @@
 'use client';
 
 import type { TextProviderProtocol } from '@/lib/nova-text-protocol';
+import { extractUpstreamErrorMessage } from '@/lib/model-error';
 
 export type TextContentPart =
   | { type: 'text'; text: string }
@@ -86,6 +87,16 @@ export function handleSimpleTextStreamEvent(
   onDelta: (token: string) => void,
   onDone: () => void,
 ): string {
+  const payloadType = typeof payload.type === 'string' ? payload.type.toLowerCase() : '';
+  const isErrorEvent = rawEventType.toLowerCase() === 'error'
+    || payloadType === 'error'
+    || payloadType === 'upstream_error'
+    || payloadType === 'response.error'
+    || payload.error != null;
+  if (isErrorEvent) {
+    throw new Error(extractUpstreamErrorMessage(payload) || '模型返回错误');
+  }
+
   if (protocol === 'openai-chat-completions') {
     const record = payload as {
       choices?: Array<{
@@ -95,9 +106,6 @@ export function handleSimpleTextStreamEvent(
       error?: { message?: string };
       message?: string;
     };
-    if (rawEventType === 'error' || record.error?.message) {
-      throw new Error(record.error?.message || record.message || '模型返回错误');
-    }
     const content = record.choices?.[0]?.delta?.content ?? record.choices?.[0]?.message?.content;
     const delta = typeof content === 'string'
       ? content
@@ -133,9 +141,6 @@ export function handleSimpleTextStreamEvent(
       onDone();
       return accumulated;
     }
-    if (eventType === 'error') {
-      throw new Error(record.error?.message || '模型返回错误');
-    }
     return accumulated;
   }
 
@@ -145,7 +150,6 @@ export function handleSimpleTextStreamEvent(
       promptFeedback?: { blockReason?: string };
       error?: { message?: string };
     };
-    if (record.error?.message) throw new Error(record.error.message);
     if (record.promptFeedback?.blockReason) throw new Error(`内容被拦截: ${record.promptFeedback.blockReason}`);
     for (const candidate of record.candidates || []) {
       for (const part of candidate.content?.parts || []) {
@@ -197,9 +201,6 @@ export function handleSimpleTextStreamEvent(
     }
     onDone();
     return accumulated;
-  }
-  if (eventType === 'error' || eventType === 'response.error') {
-    throw new Error(record.error?.message || record.message || '模型返回错误');
   }
   return accumulated;
 }

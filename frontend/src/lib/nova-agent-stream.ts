@@ -20,6 +20,7 @@ import {
 } from '@/lib/nova-agent-protocol';
 import type { TextProviderProtocol } from '@/lib/nova-text-protocol';
 import { readSseStream } from '@/lib/sse-stream-parser';
+import { extractUpstreamErrorMessage } from '@/lib/model-error';
 
 export interface NovaToolCallDraft {
   callId: string;
@@ -152,12 +153,8 @@ export async function readNovaAgentStream(
     const record = payload as StreamRecord;
     const eventType = record.type || event.event || '';
 
-    if (eventType === 'error' || eventType === 'response.error' || record.error?.message) {
-      throw new Error(
-        record.error?.message
-          || (typeof record.message === 'string' ? record.message : '')
-          || '模型返回错误',
-      );
+    if (eventType === 'error' || eventType === 'response.error' || record.error != null) {
+      throw new Error(extractUpstreamErrorMessage(record) || '模型返回错误');
     }
 
     // keepalive 只喂计时器，不产生任何内容

@@ -662,8 +662,8 @@ function normalizeError(error) {
   if (/abort|timeout|timed out/i.test(message)) {
     return `请求超时（${REQUEST_TIMEOUT_MS / 1000}秒）。高分辨率图片生成需要更长时间，请稍后重试。`;
   }
-  // 截断非预定义错误消息，避免泄露内部信息（文件路径、堆栈等）
-  return message.length > 200 ? message.slice(0, 200) + '…' : message;
+  // 截断异常长的错误消息，保留上游请求 ID、错误码等排障信息。
+  return truncateUpstreamError(message);
 }
 
 function validateEnumValue(value, validValues, fieldName) {
@@ -913,7 +913,7 @@ function createGptImageRequestInit(apiKey, request, resolvedSize, options = {}) 
 
 function parseJsonSafely(text) {
   try {
-    return JSON.parse(text);
+    return JSON.parse(String(text || '').replace(/^\uFEFF/, ''));
   } catch {
     return null;
   }
@@ -933,15 +933,54 @@ function summarizeUnexpectedResponse(text) {
   return trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed;
 }
 
-function getMessageFromPayload(payload) {
-  if (!payload || typeof payload !== 'object') return '';
-  if (typeof payload.message === 'string' && payload.message.trim()) return payload.message.trim();
+function truncateUpstreamError(message, maxLength = 2000) {
+  const normalized = String(message || '').trim();
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}…` : normalized;
+}
 
-  const error = payload.error;
-  if (typeof error === 'string' && error.trim()) return error.trim();
-  if (error && typeof error === 'object') {
-    if (typeof error.message === 'string' && error.message.trim()) return error.message.trim();
-    if (typeof error.code === 'string' && error.code.trim()) return error.code.trim();
+function appendUpstreamErrorMetadata(message, payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return message;
+  const entries = [
+    ['code', payload.code],
+    ['type', payload.type],
+    ['status', payload.status],
+    ['request_id', payload.request_id ?? payload.requestId],
+  ]
+    .filter(([, value]) => (typeof value === 'string' && value.trim()) || typeof value === 'number')
+    .filter(([, value]) => !message.includes(String(value)))
+    .map(([key, value]) => `${key}: ${String(value).trim()}`);
+  return entries.length > 0 ? `${message} (${entries.join(', ')})` : message;
+}
+
+function getMessageFromPayload(payload, depth = 0, seen = new Set()) {
+  if (typeof payload === 'string') return truncateUpstreamError(payload);
+  if (!payload || typeof payload !== 'object' || depth > 6 || seen.has(payload)) return '';
+  seen.add(payload);
+
+  if (Array.isArray(payload)) {
+    const messages = payload
+      .map(item => getMessageFromPayload(item, depth + 1, seen))
+      .filter(Boolean);
+    return truncateUpstreamError([...new Set(messages)].join('; '));
+  }
+
+  for (const key of ['message', 'detail', 'error_description', 'reason', 'title']) {
+    const value = payload[key];
+    if (typeof value === 'string' && value.trim()) {
+      return truncateUpstreamError(appendUpstreamErrorMetadata(value.trim(), payload));
+    }
+  }
+
+  for (const key of ['error', 'errors', 'details', 'cause', 'response']) {
+    const nested = getMessageFromPayload(payload[key], depth + 1, seen);
+    if (nested) return truncateUpstreamError(appendUpstreamErrorMetadata(nested, payload));
+  }
+
+  for (const key of ['code', 'status']) {
+    const value = payload[key];
+    if ((typeof value === 'string' && value.trim()) || typeof value === 'number') {
+      return `${key}: ${String(value).trim()}`;
+    }
   }
 
   return '';
@@ -949,7 +988,7 @@ function getMessageFromPayload(payload) {
 
 function getErrorMessageFromPayload(payload) {
   if (!payload || typeof payload !== 'object') return '';
-  if (payload.error) return getMessageFromPayload(payload);
+  if (payload.error || payload.errors) return getMessageFromPayload(payload);
 
   const type = typeof payload.type === 'string' ? payload.type.toLowerCase() : '';
   if (type === 'error' || type === 'upstream_error') return getMessageFromPayload(payload);
@@ -962,7 +1001,44 @@ function getUpstreamErrorText(text) {
   const data = parseJsonSafely(trimmed);
   const message = getErrorMessageFromPayload(data) || getMessageFromPayload(data);
   if (message) return message;
-  return trimmed.length > 500 ? `${trimmed.slice(0, 500)}…` : trimmed;
+  return truncateUpstreamError(trimmed);
+}
+
+function logModelUpstreamError(scope, details) {
+  const safeDetails = {
+    ...details,
+    message: truncateUpstreamError(details.message),
+  };
+  console.error(`[model-upstream-error] ${scope} ${JSON.stringify(safeDetails)}`);
+}
+
+function createImageResponseError(message, code) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function getUpstreamResponseDiagnostics(response) {
+  const contentType = String(response.headers.get('content-type') || '').trim();
+  const contentLength = String(response.headers.get('content-length') || '').trim();
+  const requestId = String(
+    response.headers.get('x-request-id')
+      || response.headers.get('request-id')
+      || response.headers.get('x-goog-request-id')
+      || response.headers.get('cf-ray')
+      || '',
+  ).trim();
+  return [
+    `HTTP ${response.status}`,
+    contentType ? `Content-Type: ${contentType}` : '',
+    contentLength ? `Content-Length: ${contentLength}` : '',
+    requestId ? `Request-ID: ${requestId}` : '',
+  ].filter(Boolean).join('，');
+}
+
+function looksLikeImageEventStream(contentType, text) {
+  if (contentType.includes('text/event-stream')) return true;
+  return /(?:^|\r?\n)(?:event:[^\r\n]*\r?\n)?data\s*:/i.test(String(text || ''));
 }
 
 function normalizeImagePayloadValue(imageData) {
@@ -1049,7 +1125,10 @@ function extractImagePayloadFromEventStream(text) {
   }
 
   if (errorMessage) throw new Error(errorMessage);
-  throw new Error('响应中无图片数据');
+  throw createImageResponseError(
+    '上游流式响应已结束，但没有返回图片数据',
+    'IMAGE_STREAM_NO_IMAGE',
+  );
 }
 
 async function parseGptImageResponse(response) {
@@ -1061,7 +1140,7 @@ async function parseGptImageResponse(response) {
     throw new Error(`API 请求失败: ${response.status}${errorText ? ` ${errorText}` : ''}`);
   }
 
-  if (contentType.includes('text/event-stream')) {
+  if (looksLikeImageEventStream(contentType, responseText)) {
     return extractImagePayloadFromEventStream(responseText);
   }
 
@@ -1072,7 +1151,17 @@ async function parseGptImageResponse(response) {
   const data = parseJsonSafely(responseText);
   if (!data) {
     const summary = summarizeUnexpectedResponse(responseText);
-    throw new Error(summary ? `响应 JSON 格式无效: ${summary}` : '响应 JSON 格式无效');
+    const diagnostics = getUpstreamResponseDiagnostics(response);
+    if (!responseText.trim()) {
+      throw createImageResponseError(
+        `上游返回空响应（${diagnostics}）。这通常表示上游网关提前断开、流式响应被代理吞掉，或接口返回成功状态但没有返回结果`,
+        'IMAGE_UPSTREAM_EMPTY_RESPONSE',
+      );
+    }
+    throw createImageResponseError(
+      `上游返回了无法解析的响应（${diagnostics}）：${summary}`,
+      'IMAGE_UPSTREAM_INVALID_RESPONSE',
+    );
   }
 
   const errorMessage = getErrorMessageFromPayload(data);
@@ -1084,6 +1173,13 @@ async function parseGptImageResponse(response) {
 function isImageStreamUnsupportedError(error) {
   const message = error instanceof Error ? error.message : String(error);
   return IMAGE_STREAM_UNSUPPORTED_PATTERN.test(message);
+}
+
+function shouldRetryImageWithoutStream(error) {
+  return isImageStreamUnsupportedError(error)
+    || error?.code === 'IMAGE_UPSTREAM_EMPTY_RESPONSE'
+    || error?.code === 'IMAGE_UPSTREAM_INVALID_RESPONSE'
+    || error?.code === 'IMAGE_STREAM_NO_IMAGE';
 }
 
 async function requestGptImage(apiKey, request, resolvedSize, options = {}) {
@@ -1230,8 +1326,8 @@ async function generateNovaImage(apiKey, request) {
         partialImages: IMAGE_STREAM_PARTIAL_IMAGES,
       });
     } catch (error) {
-      if (!isImageStreamUnsupportedError(error)) throw error;
-      console.warn('[image-stream] 上游不支持图片流式参数，回退非流式请求');
+      if (!shouldRetryImageWithoutStream(error)) throw error;
+      console.warn(`[image-stream] 流式响应不可用，回退非流式请求: ${normalizeError(error)}`);
       return requestGptImage(apiKey, request, resolvedSize, { baseUrl });
     }
   }
@@ -1273,7 +1369,8 @@ async function generateNovaGeminiImage(apiKey, request, options = {}) {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`API 请求失败: ${response.status} ${errorText}`);
+    const upstreamMessage = getUpstreamErrorText(errorText);
+    throw new Error(`API 请求失败: ${response.status}${upstreamMessage ? ` ${upstreamMessage}` : ''}`);
   }
 
   const responseText = await response.text();
@@ -1283,8 +1380,20 @@ async function generateNovaGeminiImage(apiKey, request, options = {}) {
   const data = parseJsonSafely(responseText);
   if (!data) {
     const summary = summarizeUnexpectedResponse(responseText);
-    throw new Error(summary ? `响应 JSON 格式无效: ${summary}` : '响应 JSON 格式无效');
+    const diagnostics = getUpstreamResponseDiagnostics(response);
+    if (!responseText.trim()) {
+      throw createImageResponseError(
+        `上游返回空响应（${diagnostics}）。这通常表示上游网关提前断开，或接口返回成功状态但没有返回结果`,
+        'IMAGE_UPSTREAM_EMPTY_RESPONSE',
+      );
+    }
+    throw createImageResponseError(
+      `上游返回了无法解析的响应（${diagnostics}）：${summary}`,
+      'IMAGE_UPSTREAM_INVALID_RESPONSE',
+    );
   }
+  const errorMessage = getErrorMessageFromPayload(data);
+  if (errorMessage) throw new Error(errorMessage);
   return extractGeminiImagePayload(data);
 }
 
@@ -1350,6 +1459,13 @@ async function generateSingleImage(apiKey, request, taskId, index) {
     return { success: true, images: diskRefs };
   } catch (error) {
     const message = normalizeError(error);
+    logModelUpstreamError('image-generation', {
+      taskId,
+      itemIndex: index,
+      protocol: request.protocol,
+      model: request.model,
+      message,
+    });
     db.prepare("UPDATE task_items SET status = 'failed', error = ?, completed_at = ? WHERE task_id = ? AND item_index = ?")
       .run(message, new Date().toISOString(), taskId, index);
     return { success: false, error: message };
@@ -1946,6 +2062,13 @@ async function handleApi(req, res, pathname) {
         // 由前端的 readImageResponse 统一判别。
         const upstreamType = upstream.headers.get('content-type') || 'application/json';
         const buffer = Buffer.from(await upstream.arrayBuffer());
+        if (!upstream.ok) {
+          const message = getUpstreamErrorText(buffer.toString('utf8')) || `上游返回 ${upstream.status}`;
+          logModelUpstreamError('image-edit-proxy', {
+            status: upstream.status,
+            message,
+          });
+        }
         res.writeHead(upstream.status, {
           'Content-Type': upstreamType,
           'Content-Length': buffer.length,
@@ -2020,7 +2143,8 @@ async function handleApi(req, res, pathname) {
           body: JSON.stringify(forwardedBody),
         });
 
-        if (stream && upstream.ok) {
+        const upstreamType = String(upstream.headers.get('content-type') || '').toLowerCase();
+        if (stream && upstream.ok && upstreamType.includes('text/event-stream')) {
           res.writeHead(upstream.status, {
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache',
@@ -2034,19 +2158,57 @@ async function handleApi(req, res, pathname) {
               if (done) { res.end(); return true; }
               res.write(value);
             }
-          } catch {
+          } catch (error) {
+            const message = normalizeError(error);
+            logModelUpstreamError('text-proxy-stream', {
+              protocol,
+              model,
+              message,
+            });
+            if (!res.writableEnded) {
+              res.write(`event: error\ndata: ${JSON.stringify({ error: { message } })}\n\n`);
+            }
             res.end();
           }
           return true;
         }
 
-        let data = null;
-        try { data = await upstream.json(); } catch { /* ignore */ }
-        sendJson(res, upstream.status, data || { error: `上游返回 ${upstream.status}` });
+        const upstreamText = await upstream.text();
+        const data = parseJsonSafely(upstreamText);
+        const embeddedError = getErrorMessageFromPayload(data);
+        if (!upstream.ok || embeddedError) {
+          const message = embeddedError
+            || getUpstreamErrorText(upstreamText)
+            || `上游返回 ${upstream.status}`;
+          logModelUpstreamError('text-proxy', {
+            protocol,
+            model,
+            status: upstream.status,
+            message,
+          });
+          if (!upstream.ok && data && typeof data === 'object') {
+            sendJson(res, upstream.status, data);
+          } else {
+            sendJson(res, upstream.ok ? 502 : upstream.status, {
+              error: { message },
+              upstreamStatus: upstream.status,
+            });
+          }
+        } else if (data !== null) {
+          sendJson(res, upstream.status, data);
+        } else {
+          res.writeHead(upstream.status, {
+            'Content-Type': upstreamType || 'text/plain; charset=utf-8',
+            'Cache-Control': 'no-store',
+          });
+          res.end(upstreamText);
+        }
       } catch (error) {
         if (error && error.message && /abort|timeout/i.test(error.message)) {
+          logModelUpstreamError('text-proxy', { message: error.message });
           sendJson(res, 504, { error: '代理请求上游超时' });
         } else {
+          logModelUpstreamError('text-proxy', { message: normalizeError(error) });
           sendJson(res, 502, { error: normalizeError(error) });
         }
       }

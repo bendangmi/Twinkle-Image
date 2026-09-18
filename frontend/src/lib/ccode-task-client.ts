@@ -13,6 +13,7 @@ import {
   normalizeTextModelBaseUrl,
 } from '@/lib/model-endpoints';
 import type { TextProviderProtocol } from '@/lib/nova-text-protocol';
+import { extractUpstreamErrorMessage } from '@/lib/model-error';
 
 export interface ImageReference {
   data: string;
@@ -107,13 +108,18 @@ function getObjectProperty(data: unknown, key: string): unknown {
 }
 
 async function parseTaskResponse<T>(response: Response): Promise<T> {
-  const data: unknown = await response.json().catch(() => null);
+  const raw = await response.text().catch(() => '');
+  let data: unknown = null;
+  try {
+    data = raw ? JSON.parse(raw) : null;
+  } catch {
+    data = raw;
+  }
   if (!response.ok) {
-    const error = getObjectProperty(data, 'error');
     const code = getObjectProperty(data, 'code');
     const retryAfter = getObjectProperty(data, 'retryAfter');
     throw new NovaTaskError(
-      typeof error === 'string' ? error : `任务请求失败: ${response.status}`,
+      extractUpstreamErrorMessage(data) || `任务请求失败: ${response.status}`,
       response.status,
       typeof code === 'string' ? code : undefined,
       typeof retryAfter === 'number' ? retryAfter : undefined,
