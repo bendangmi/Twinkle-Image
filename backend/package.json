@@ -1,6 +1,6 @@
 {
   "name": "twinkle-image-backend",
-  "version": "3.3.2",
+  "version": "3.3.3",
   "private": true,
   "description": "Twinkle Image 后端 - 任务队列和 API 服务器",
   "scripts": {
@@ -12,6 +12,7 @@
   "dependencies": {
     "better-sqlite3": "^12.5.0",
     "sharp": "^0.35.3",
+    "twinkle-image": "file:..",
     "undici": "^8.2.0",
     "ws": "^8.20.0"
   },

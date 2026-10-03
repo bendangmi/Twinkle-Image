@@ -1,4 +1,5 @@
-const TWINKLE_MODEL_API_BASE_URL = 'https://big-model.smart-agi.com/api/v1';
+const TWINKLE_MODEL_API_ORIGIN = 'https://big-model.smart-agi.com';
+const TWINKLE_MODEL_API_BASE_URL = `${TWINKLE_MODEL_API_ORIGIN}/api/v1`;
 const TWINKLE_MODEL_KEY_NAME = '系统默认密钥';
 const TWINKLE_MODEL_REQUEST_TIMEOUT_MS = 15_000;
 
@@ -19,7 +20,7 @@ async function requestTwinkleModel(pathname, options = {}, fetchImpl = fetch) {
   const timeout = setTimeout(() => controller.abort(), TWINKLE_MODEL_REQUEST_TIMEOUT_MS);
   let response;
   try {
-    response = await fetchImpl(`${TWINKLE_MODEL_API_BASE_URL}${pathname}`, {
+    response = await fetchImpl(`${options.baseUrl || TWINKLE_MODEL_API_BASE_URL}${pathname}`, {
       method: options.method || 'GET',
       headers: {
         'Accept': 'application/json',
@@ -104,6 +105,7 @@ async function loginToTwinkleModel(email, password, fetchImpl = fetch) {
   return requestTwinkleModel('/auth/login', {
     method: 'POST',
     body: { email, password },
+    baseUrl: `${TWINKLE_MODEL_API_ORIGIN}/api/v2`,
   }, fetchImpl);
 }
 

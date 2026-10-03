@@ -38,6 +38,6 @@ describe('SettingsModal', () => {
     });
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getAllByDisplayValue('system-key')).toHaveLength(2);
+    expect(screen.getAllByDisplayValue('system-key')).toHaveLength(3);
   });
 });

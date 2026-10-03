@@ -11,7 +11,7 @@ Twinkle Image is a self-hosted AI image-creation workspace derived from Nova Ima
 
 | Item | Current value |
 | --- | --- |
-| Fork version | `3.3.2` |
+| Fork version | `3.3.3` |
 | Upstream baseline | `v3.3.0` (`7041092`) |
 | Maintained branch | `main` |
 | Fork repository | `https://github.com/bendangmi/Twinkle-Image.git` |
@@ -122,6 +122,8 @@ npm run dev:frontend
 ```
 
 Open <http://127.0.0.1:46311>. The backend listens on `46312` with the sample local configuration. Model credentials and endpoints are configured through the application settings; do not bake personal credentials into a public image.
+
+For the optional Electron desktop shell, install root dependencies with `npm install`, then use `npm run electron:dev` or `npm run electron:dist:win` / `npm run electron:dist:mac`. In Settings, expand the provider management section to share one API key across text and image models. Twinkle Model login and the original model editor remain available.
 
 ## Data and Configuration
 

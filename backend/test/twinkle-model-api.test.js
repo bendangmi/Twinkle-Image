@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const {
   TWINKLE_MODEL_KEY_NAME,
   listAllTwinkleApiKeys,
+  loginToTwinkleModel,
   selectTwinkleDefaultApiKeys,
 } = require('../twinkle-model-api');
 
@@ -14,6 +15,20 @@ function jsonResponse(payload, status = 200) {
     json: async () => payload,
   };
 }
+
+test('loginToTwinkleModel uses the v2 login endpoint', async () => {
+  let requestedUrl;
+  let requestedOptions;
+  await loginToTwinkleModel('user@example.com', 'password', async (url, options) => {
+    requestedUrl = url;
+    requestedOptions = options;
+    return jsonResponse({ code: 0, data: { access_token: 'token' } });
+  });
+
+  assert.equal(requestedUrl, 'https://big-model.smart-agi.com/api/v2/auth/login');
+  assert.equal(requestedOptions.method, 'POST');
+  assert.deepEqual(JSON.parse(requestedOptions.body), { email: 'user@example.com', password: 'password' });
+});
 
 test('selectTwinkleDefaultApiKeys selects the active system default key', () => {
   const result = selectTwinkleDefaultApiKeys([

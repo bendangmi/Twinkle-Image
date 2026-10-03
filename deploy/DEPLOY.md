@@ -1,6 +1,6 @@
 # Twinkle Image 离线 Docker 部署
 
-当前镜像版本：`3.3.2`
+当前镜像版本：`3.3.3`（`linux/amd64`，适用于 x86_64 Linux 服务器）。离线镜像仅保存在本机 `deploy/`，不会随 Git 推送。
 
 ## 1. 在开发机生成离线镜像
 
@@ -27,13 +27,13 @@ powershell -ExecutionPolicy Bypass -File .\deploy\build-image.ps1 -NoVersionBump
 也可以显式指定版本：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\deploy\build-image.ps1 -Version 3.3.2
+powershell -ExecutionPolicy Bypass -File .\deploy\build-image.ps1 -Version 3.3.3
 ```
 
 脚本会生成：
 
-- `deploy/twinkle-image-3.3.2.tar`
-- `deploy/twinkle-image-3.3.2.tar.sha256`
+- `deploy/twinkle-image-3.3.3.tar`
+- `deploy/twinkle-image-3.3.3.tar.sha256`
 
 tar 文件体积较大，已被 Git 忽略，不会推送到 GitHub。
 
@@ -42,8 +42,8 @@ tar 文件体积较大，已被 Git 忽略，不会推送到 GitHub。
 将以下内容上传到服务器同一目录，例如 `/opt/twinkle-image`：
 
 ```text
-twinkle-image-3.3.2.tar
-twinkle-image-3.3.2.tar.sha256
+twinkle-image-3.3.3.tar
+twinkle-image-3.3.3.tar.sha256
 docker-compose.yaml
 .env
 config/blacklist.json
@@ -51,19 +51,22 @@ config/prompts.json
 ```
 
 本地先根据 `.env.example` 创建 `.env`，并务必修改
-`PROMPT_GALLERY_PASSWORD`。
+`PROMPT_GALLERY_PASSWORD`。`config/blacklist.json` 和 `config/prompts.json` 必须同时上传；
+首次部署可直接使用仓库提供的示例文件。服务器需要安装 Docker Engine 和 Compose 插件，
+`docker-compose.yaml` 与上述文件须放在同一目录。请勿将实际 `.env` 或账号密钥提交到 Git。
 
 ## 3. 在服务器校验并导入镜像
 
 ```bash
 cd /opt/twinkle-image
-sha256sum -c twinkle-image-3.3.2.tar.sha256
-docker load -i twinkle-image-3.3.2.tar
-docker image inspect twinkle-image:3.3.2 --format '{{.Id}} {{index .Config.Labels "org.opencontainers.image.version"}}'
+sha256sum -c twinkle-image-3.3.3.tar.sha256
+docker load -i twinkle-image-3.3.3.tar
+docker image inspect twinkle-image:3.3.3 --format '{{.Id}} {{index .Config.Labels "org.opencontainers.image.version"}}'
 ```
 
 `docker load` 导入后，Compose 的 `image:` 应填写镜像标签
-`twinkle-image:3.3.2`，不是 tar 文件名。
+`twinkle-image:3.3.3`，不是 tar 文件名。若服务器是 ARM64，需在开发机用
+`-Platform linux/arm64` 重新构建并传送对应架构的 tar。
 
 ## 4. 启动
 
@@ -73,6 +76,9 @@ docker compose ps
 docker compose logs -f --tail=100 twinkle-image
 ```
 
+检查健康状态：`docker inspect --format '{{json .State.Health}}' twinkle-image`。
+也可使用 `curl -f http://127.0.0.1:3002/api/nova/queue-status` 验证 HTTP 服务。
+
 默认访问地址：`http://服务器IP:3002`。可在 `.env` 中修改
 `TWINKLE_PORT` 后重新执行 `docker compose up -d`。
 
@@ -81,9 +87,10 @@ SQLite 数据库和生成图片保存在 Docker 命名卷
 
 ## 5. 更新版本
 
-上传新版本 tar 后执行：
+先备份数据卷，然后上传新版本 tar、校验 SHA256 后执行：
 
 ```bash
+sha256sum -c twinkle-image-新版本.tar.sha256
 docker load -i twinkle-image-新版本.tar
 ```
 
@@ -91,7 +98,7 @@ docker load -i twinkle-image-新版本.tar
 
 ```bash
 docker compose up -d
-docker image prune
+docker compose ps
 ```
 
 ## 6. 备份和恢复数据
@@ -103,7 +110,8 @@ docker run --rm -v twinkle-image_twinkle-image-data:/data -v "$PWD":/backup alpi
   tar czf /backup/twinkle-image-data.tar.gz -C /data .
 ```
 
-卷的实际名称可用 `docker volume ls` 查看。恢复前先执行
+不要在确认新版本健康之前删除旧镜像；回滚时把 Compose 的 `image:` 改回旧标签并执行
+`docker compose up -d`。卷的实际名称可用 `docker volume ls` 查看。恢复前先执行
 `docker compose down`，再将备份解压回同一个卷。
 
 ## 常用命令

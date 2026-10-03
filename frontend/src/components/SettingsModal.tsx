@@ -35,11 +35,13 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { BackupProgress } from '@/components/BackupProgress';
+import { ProviderSettingsPanel } from '@/components/ProviderSettingsPanel';
 import {
   BUILTIN_IMAGE_PRESETS,
   BUILTIN_IMAGE_PRESET_OPTIONS,
   DEFAULT_DEFAULTS,
   DEFAULT_GENERATION_SETTINGS,
+  deriveImageAndTextModels,
   DEFAULT_TEXT_MODEL_TEMPLATES,
   MAX_IMAGE_GENERATION_RETRIES,
   generateModelId,
@@ -56,6 +58,7 @@ import {
   type ProviderProtocol,
   type TextModelConfig,
 } from '@/lib/nova-models';
+import { migrateLegacyProviders, type ProviderConfig } from '@/lib/provider-registry';
 import {
   getTextProviderDescription,
   getTextProviderLabel,
@@ -171,6 +174,8 @@ function normalizeDefaults(
 export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModalProps) {
   const [imageModels, setImageModels] = useState<ImageModelConfig[]>([]);
   const [textModels, setTextModels] = useState<TextModelConfig[]>([]);
+  const [providers, setProviders] = useState<ProviderConfig[]>([]);
+  const [selectedProviderId, setSelectedProviderId] = useState('');
   const [defaults, setDefaults] = useState<DefaultModels>(DEFAULT_DEFAULTS);
   const [generationSettings, setGenerationSettings] = useState<GenerationSettings>(DEFAULT_GENERATION_SETTINGS);
   const [selectedImageModelId, setSelectedImageModelId] = useState('');
@@ -199,6 +204,9 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
   useEffect(() => {
     if (!isOpen) return;
     const registry = loadRegistry();
+    const nextProviders = registry.providers || migrateLegacyProviders(registry.imageModels, registry.textModels);
+    setProviders(nextProviders);
+    setSelectedProviderId(nextProviders[0]?.id || '');
     setImageModels(registry.imageModels.map(cloneImageModel));
     setTextModels(registry.textModels.map(cloneTextModel));
     setDefaults(normalizeDefaults(registry.defaults, registry.imageModels, registry.textModels));
@@ -338,12 +346,34 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
     };
 
     saveRegistry(registry);
+    const nextProviders = migrateLegacyProviders(imageModels, textModels);
+    setProviders(nextProviders);
+    setSelectedProviderId(nextProviders[0]?.id || '');
     syncDynamicModelExports();
     onApiKeyChange?.(hasAnyApiKey());
     setSuccess('设置已保存');
     setError(null);
     setModelStatuses(null);
     setModelCheckError(null);
+  };
+
+  const saveProviders = () => {
+    const derived = deriveImageAndTextModels(providers);
+    if (derived.imageModels.length === 0 || derived.textModels.length === 0) {
+      setError('请为供应商至少配置一个图片模型和一个文本模型');
+      return;
+    }
+    const nextDefaults = normalizeDefaults(defaults, derived.imageModels, derived.textModels);
+    saveRegistry({ providers, ...derived, defaults: nextDefaults, generationSettings });
+    setImageModels(derived.imageModels.map(cloneImageModel));
+    setTextModels(derived.textModels.map(cloneTextModel));
+    setSelectedImageModelId(derived.imageModels[0]?.id || '');
+    setSelectedTextModelId(derived.textModels[0]?.id || '');
+    setDefaults(nextDefaults);
+    syncDynamicModelExports();
+    onApiKeyChange?.(hasAnyApiKey());
+    setError(null);
+    setSuccess('供应商配置已保存');
   };
 
   const configureFromTwinkleSession = async (session: TwinkleModelSession) => {
@@ -354,6 +384,7 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
     try {
       const result = await fetchTwinkleModelDefaultKeys(session);
       const nextRegistry = applyTwinkleModelKeys({
+        providers,
         imageModels,
         textModels,
         defaults,
@@ -363,6 +394,7 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
       saveRegistry(nextRegistry);
       syncDynamicModelExports();
       setTwinkleSession(result.session);
+      setProviders(nextRegistry.providers || []);
       setImageModels(nextRegistry.imageModels.map(cloneImageModel));
       setTextModels(nextRegistry.textModels.map(cloneTextModel));
       setDefaults(nextRegistry.defaults);
@@ -541,6 +573,22 @@ export function SettingsModal({ isOpen, onClose, onApiKeyChange }: SettingsModal
           </TabsList>
 
           <TabsContent value="models" className="min-h-0 overflow-y-auto p-4 sm:p-6 mt-0 space-y-6">
+            <details className="rounded-xl border border-border bg-card p-4">
+              <summary className="cursor-pointer text-sm font-medium text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                按供应商管理 API Key 与模型
+              </summary>
+              <div className="mt-4 space-y-4">
+                <ProviderSettingsPanel
+                  providers={providers}
+                  selectedProviderId={selectedProviderId}
+                  onChange={setProviders}
+                  onSelect={setSelectedProviderId}
+                />
+                <div className="flex justify-end">
+                  <Button type="button" onClick={saveProviders}>保存供应商配置</Button>
+                </div>
+              </div>
+            </details>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="space-y-1">
                 <p className="text-sm font-medium">模型级独立配置</p>

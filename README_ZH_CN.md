@@ -11,7 +11,7 @@ Twinkle Image 是基于 Nova Image Studio 二次开发的自托管 AI 图片创�
 
 | 项目 | 当前值 |
 | --- | --- |
-| 二开版本 | `3.3.2` |
+| 二开版本 | `3.3.3` |
 | 上游基线 | `v3.3.0`（`7041092`） |
 | 维护分支 | `main` |
 | 二开仓库 | `https://github.com/bendangmi/Twinkle-Image.git` |
@@ -122,6 +122,8 @@ npm run dev:frontend
 ```
 
 访问 <http://127.0.0.1:46311>。使用本地示例配置时，后端监听 `46312`。模型凭据与地址通过应用设置管理，不要把个人凭据写入公共镜像。
+
+桌面端可选：先运行 `npm install` 安装根目录依赖，再使用 `npm run electron:dev` 启动，或使用 `npm run electron:dist:win` / `npm run electron:dist:mac` 打包。设置中的供应商管理可让文本与图片模型共用同一把 API Key；Twinkle Model 登录与原有模型编辑器仍可使用。
 
 ## 数据与配置
 

@@ -7,6 +7,7 @@ import { ImageGenerationWorkbench } from '@/components/ImageGenerationWorkbench'
 import { ReversePromptForm } from '@/components/ReversePromptForm';
 import { GifGenerationWorkspace } from '@/components/GifGenerationWorkspace';
 import { AgentChatWorkspace } from '@/components/agent/AgentChatWorkspace';
+import { SessionSwitcher } from '@/components/agent/SessionSwitcher';
 import { AssetsWorkspace } from '@/components/assets/AssetsWorkspace';
 import { CanvasWorkspace } from '@/components/canvas/CanvasWorkspace';
 import { SliceWorkspace } from '@/components/slice/SliceWorkspace';
@@ -45,6 +46,8 @@ import {
 } from '@/lib/workspace-task-service';
 import { cn } from '@/lib/utils';
 import { BA_RANDOM_URL, BING_WALLPAPER_URL } from '@/lib/constants';
+import { getActiveAgentSessionId, setActiveAgentSessionId } from '@/lib/agent-sessions';
+import { setAgentSession } from '@/lib/agent-context-store';
 
 export function WorkspaceShell() {
   const queueStatus = useQueueStatus();
@@ -59,6 +62,28 @@ export function WorkspaceShell() {
   const workspace = useWorkspaceJobs();
   const galleryConfig = usePromptGalleryConfig();
   const promptGallery = usePromptGalleryAccess(galleryConfig.mode, galleryConfig.passwordEnabled, setError, () => setActiveTab('prompt-gallery'));
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [agentSidebarOpen, setAgentSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const sessionId = getActiveAgentSessionId();
+
+    void Promise.resolve(setAgentSession(sessionId)).then(() => {
+      if (!cancelled) setActiveSessionId(sessionId);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleAgentSessionChange = useCallback(async (sessionId: string) => {
+    if (!sessionId || sessionId === activeSessionId) return;
+    await setAgentSession(sessionId);
+    setActiveAgentSessionId(sessionId);
+    setActiveSessionId(sessionId);
+  }, [activeSessionId]);
 
   // Toast state
   const [toasts, setToasts] = useState<ToastData[]>([]);
@@ -389,11 +414,25 @@ export function WorkspaceShell() {
                 keepMounted
                 className={cn('flex-1 flex flex-col min-h-0', wideMode && 'xl:flex xl:min-h-0 xl:flex-1 xl:flex-col')}
               >
-                <AgentChatWorkspace
-                  wideMode={wideMode}
-                  disabled={!workspace.hasApiKey}
-                  onConfigureApiKey={() => setSettingsOpen(true)}
-                />
+                <div className="mb-2 flex justify-end">
+                  {activeSessionId && (
+                    <SessionSwitcher
+                      activeSessionId={activeSessionId}
+                      onSessionChange={handleAgentSessionChange}
+                      mobileOpen={agentSidebarOpen}
+                      onMobileOpenChange={setAgentSidebarOpen}
+                    />
+                  )}
+                </div>
+                {activeSessionId && (
+                  <AgentChatWorkspace
+                    key={activeSessionId}
+                    activeSessionId={activeSessionId}
+                    wideMode={wideMode}
+                    disabled={!workspace.hasApiKey}
+                    onConfigureApiKey={() => setSettingsOpen(true)}
+                  />
+                )}
               </TabsContent>
 
               <TabsContent value="canvas" keepMounted className={cn('min-h-0', wideMode ? 'xl:flex xl:min-h-0 xl:flex-1 xl:flex-col' : 'space-y-6')}>

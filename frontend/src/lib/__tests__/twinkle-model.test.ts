@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { applyTwinkleModelKeys } from '@/lib/twinkle-model';
-import type { NovaModelRegistry } from '@/lib/nova-models';
+import { DEFAULT_DEFAULTS, loadRegistry, saveRegistry, type NovaModelRegistry } from '@/lib/nova-models';
 
 const registry: NovaModelRegistry = {
   imageModels: [{
@@ -24,6 +24,7 @@ const registry: NovaModelRegistry = {
     baseUrl: 'https://example.test',
   }],
   defaults: {
+    ...DEFAULT_DEFAULTS,
     textToImage: 'custom-image',
     imageToImage: 'custom-image',
     reversePrompt: 'custom-text',
@@ -35,6 +36,17 @@ const registry: NovaModelRegistry = {
 };
 
 describe('applyTwinkleModelKeys', () => {
+  afterEach(() => localStorage.clear());
+
+  it('preserves Twinkle models and existing keys through provider-based storage', () => {
+    saveRegistry(applyTwinkleModelKeys(registry, 'system-key'));
+    const restored = loadRegistry();
+    expect(restored.imageModels.map(model => model.id)).toContain('custom-image');
+    expect(restored.imageModels.find(model => model.modelId === 'gpt-image-2.5')?.apiKey).toBe('system-key');
+    expect(restored.imageModels.find(model => model.modelId === 'gemini-3-pro-image-preview')?.protocol).toBe('google');
+    expect(restored.textModels.find(model => model.modelId === 'gpt-5.6-sol')?.apiKey).toBe('system-key');
+  });
+
   it('creates the requested templates and makes them the defaults', () => {
     const configured = applyTwinkleModelKeys(registry, 'system-key');
 

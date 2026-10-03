@@ -6,6 +6,7 @@ import {
   type NovaModelRegistry,
   type TextModelConfig,
 } from '@/lib/nova-models';
+import { migrateLegacyProviders } from '@/lib/provider-registry';
 
 export const TWINKLE_MODEL_ACCOUNT_URL = 'https://big-model.smart-agi.com';
 export const TWINKLE_MODEL_REQUEST_BASE_URL = 'https://st.smart-agi.com';
@@ -310,11 +311,22 @@ export function applyTwinkleModelKeys(
   );
   const banana = upsertImageModel(gptImage25.remaining, BANANA_PRO_MODEL_ID, 'gemini-3-pro-image-preview', key);
   const text = upsertTextModel(registry.textModels, key);
+  const imageModels = [gptImage25.model, gptImage.model, banana.model, ...banana.remaining];
+  const textModels = [text.model, ...text.remaining];
+  const configuredIds = new Set([gptImage25.model.id, gptImage.model.id, banana.model.id, text.model.id]);
+  const remainingProviders = registry.providers?.map(provider => ({
+    ...provider,
+    models: provider.models.filter(model => !configuredIds.has(model.imageConfigId || '') && !configuredIds.has(model.textConfigId || '')),
+  })).filter(provider => provider.models.length > 0);
+  const providers = registry.providers
+    ? [...(remainingProviders || []), ...migrateLegacyProviders(imageModels.slice(0, 3), textModels.slice(0, 1))]
+    : migrateLegacyProviders(imageModels, textModels);
 
   return {
     ...registry,
-    imageModels: [gptImage25.model, gptImage.model, banana.model, ...banana.remaining],
-    textModels: [text.model, ...text.remaining],
+    providers,
+    imageModels,
+    textModels,
     defaults: {
       textToImage: gptImage25.model.id,
       imageToImage: gptImage25.model.id,

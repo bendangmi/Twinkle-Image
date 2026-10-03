@@ -1,11 +1,17 @@
 const http = require('http');
-const { createHash, randomUUID } = require('crypto');
+const net = require('net');
+const { createHash, randomUUID, timingSafeEqual } = require('crypto');
+const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const next = process.env.NODE_ENV !== 'production' ? require('next') : null;
 const Database = require('better-sqlite3');
 const sharp = require('sharp');
 const { WebSocketServer } = require('ws');
+const { CdpError, getCdpStatus, listPageTargets, evaluateInPage, capturePageScreenshot, fetchResourceInPage, openTarget, normalizeCdpHost } = require('./cdp');
+const { TAOBAO_EXTRACT_EXPRESSION } = require('./taobao-extract');
+const { buildDoubaoImagesUrl, resolveDoubaoImageSize, buildDoubaoImagePayload, DEFAULT_ARK_BASE_URL } = require('./doubao');
+const { buildDashScopeImageUrl, buildDashScopeImagePayload, extractDashScopeImageUrl, DEFAULT_DASHSCOPE_BASE_URL } = require('./alibaba-dashscope');
 const {
   DEFAULT_IMAGE_MAX_RETRIES,
   isValidImageMaxRetries,
@@ -103,6 +109,10 @@ function normalizeProtocolBaseUrl(protocol, url) {
   if (protocol === 'google' || protocol === 'google-gemini') {
     return normalized.endsWith('/v1beta') ? normalized.slice(0, -7) : normalized;
   }
+  // alibaba-dashscope 的后缀形态（/compatible-mode/v1、/api/v1、/compatible-mode/api/v1）
+  // 由 buildDashScopeImageUrl 统一剥离；这里先剥一层 /v1 会产生 /compatible-mode/api
+  // 之类的半截形态，让那边怎么都剥不干净（拼出 /api/api/v1/... 404）。
+  if (protocol === 'alibaba-dashscope') return normalized;
   return normalized.endsWith('/v1') ? normalized.slice(0, -3) : normalized;
 }
 
@@ -126,7 +136,7 @@ const IMAGE_STREAM_ENABLED = String(process.env.NOVA_IMAGE_STREAM ?? 'true').toL
 const IMAGE_STREAM_PARTIAL_IMAGES = Math.min(3, Math.max(0, Number.parseInt(process.env.NOVA_IMAGE_PARTIAL_IMAGES || '1', 10) || 1));
 const IMAGE_STREAM_UNSUPPORTED_PATTERN = /(?:(?:stream|partial_images).*(?:unsupported|not supported|unknown|unrecognized|invalid)|(?:unsupported|not supported|unknown|unrecognized|invalid).*(?:stream|partial_images)|(?:stream|partial_images).*(?:不支持|未知|无效)|(?:不支持|未知|无效).*(?:stream|partial_images))/i;
 // 开源版：不再硬编码模型列表，由前端通过 protocol 字段指定协议类型
-const VALID_PROTOCOLS = new Set(['google', 'openai', 'grok']);
+const VALID_PROTOCOLS = new Set(['google', 'openai', 'grok', 'doubao', 'alibaba-dashscope']);
 const GPT_IMAGE_QUALITIES = new Set(['auto', 'high', 'medium', 'low']);
 const GPT_IMAGE_STYLES = new Set(['auto', 'vivid', 'natural']);
 const GPT_IMAGE_BACKGROUNDS = new Set(['auto', 'transparent', 'opaque']);
@@ -139,7 +149,32 @@ const PROMPT_GALLERY_PASSWORD_SALT = 'nova-pg-2026';
 const IS_DEV = process.env.NODE_ENV !== 'production';
 const STATIC_DIR = path.join(__dirname, '..', 'frontend', 'out');
 const IMAGE_DIR = process.env.NOVA_IMAGE_DIR || path.join(__dirname, 'nova-images');
+// CDP 功能为启动级开关：默认关闭，显式置 true 时才提供 /api/nova/cdp/*。
+const CDP_ENABLED = String(process.env.NOVA_CDP_ENABLED ?? 'false').toLowerCase() === 'true';
+const CDP_DIR = process.env.NOVA_CDP_DIR || path.join(path.dirname(IMAGE_DIR), 'cdp-products');
 const taskRefImages = new Map();
+
+function cleanupOldCdpImages() {
+  try {
+    if (!fs.existsSync(CDP_DIR)) return;
+    const files = fs.readdirSync(CDP_DIR)
+      .filter(fileName => /\.(jpg|png|jpeg|webp|gif)$/i.test(fileName))
+      .map(fileName => {
+        const fullPath = path.join(CDP_DIR, fileName);
+        return { fullPath, mtime: fs.statSync(fullPath).mtimeMs };
+      })
+      .sort((first, second) => second.mtime - first.mtime);
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    for (const [index, file] of files.entries()) {
+      if (index >= 100 || file.mtime < cutoff) fs.unlinkSync(file.fullPath);
+    }
+  } catch (error) {
+    console.warn('[cdp] image cleanup failed:', error);
+  }
+}
+
+cleanupOldCdpImages();
+setInterval(cleanupOldCdpImages, 60 * 60 * 1000).unref();
 
 function ensureDatabaseDir() {
   const databaseDir = path.dirname(DB_PATH);
@@ -203,6 +238,126 @@ function getLimitConfig() {
   };
 }
 
+// ===== CDP（浏览器调试协议）配置 =====
+// 与限流配置一样走 getRuntimeEnv() 热生效：改 .env 后约 1 秒内生效，无需重启。
+const DEFAULT_CDP_CONFIG = {
+  host: '127.0.0.1',
+  port: 9222,
+  timeoutMs: 20000,
+};
+let warnedNonLoopbackCdpHost = false;
+
+function getCdpConfig() {
+  const env = getRuntimeEnv();
+  const runtime = readCdpRuntimeConfig();
+  const configuredHost = String(env.NOVA_CDP_HOST || '').trim() || DEFAULT_CDP_CONFIG.host;
+  const host = normalizeCdpHost(configuredHost);
+  if (!warnedNonLoopbackCdpHost && configuredHost !== host) {
+    warnedNonLoopbackCdpHost = true;
+    console.warn(`[cdp] NOVA_CDP_HOST=${configuredHost} 非回环地址，已限制为 ${host}；不会扩大网络暴露。`);
+  }
+  return {
+    host,
+    // 优先级：运行时配置（设置页改端口）> 环境变量 > 默认 9222
+    port: parseIntegerEnv(runtime.port ?? env.NOVA_CDP_PORT, DEFAULT_CDP_CONFIG.port, { min: 1, max: 65535 }),
+    timeoutMs: parseIntegerEnv(env.NOVA_CDP_TIMEOUT_MS, DEFAULT_CDP_CONFIG.timeoutMs, { min: 1000, max: 120000 }),
+    launchEnabled: String(env.NOVA_CDP_LAUNCH_ENABLED ?? 'true').toLowerCase() !== 'false',
+    evalEnabled: String(env.NOVA_CDP_EVAL_ENABLED ?? 'false').toLowerCase() === 'true',
+  };
+}
+
+// /api/nova/cdp/read-page 注入页面内的固定表达式：克隆 body → 移除 script/style/noscript
+// → 取 innerText → 压缩连续空白 → 截断到 maxChars。maxChars 为已钳制的整数，直接内联。
+const READ_PAGE_MAX_CHARS_DEFAULT = 8000;
+const READ_PAGE_MAX_CHARS_LIMIT = 20000;
+
+function buildReadPageExpression(maxChars) {
+  return `(() => {
+  const root = document.body ? document.body.cloneNode(true) : null;
+  if (!root) return { title: document.title || '', url: location.href, text: '' };
+  root.querySelectorAll('script, style, noscript').forEach(node => node.remove());
+  const text = String(root.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, ${maxChars});
+  return { title: document.title || '', url: location.href, text };
+})()`;
+}
+
+// CdpError.code → HTTP 状态码映射（多模块共享契约，勿擅自改动）
+const CDP_ERROR_HTTP_STATUS = {
+  CDP_TIMEOUT: 504,
+  CDP_TARGET_NOT_FOUND: 404,
+  CDP_PROTOCOL: 502,
+  CDP_UNREACHABLE: 502,
+};
+
+const CDP_RUNTIME_CONFIG_PATH = path.join(path.dirname(CDP_DIR), 'cdp-config.json');
+let cdpRuntimeConfigCache = null;
+let cdpRuntimeConfigCacheTime = 0;
+const CDP_CONFIG_CACHE_TTL_MS = 5000;
+let launchInProgress = false;
+
+function readCdpRuntimeConfig() {
+  const now = Date.now();
+  if (cdpRuntimeConfigCache && now - cdpRuntimeConfigCacheTime < CDP_CONFIG_CACHE_TTL_MS) {
+    return cdpRuntimeConfigCache;
+  }
+  try {
+    // 用户用记事本/PowerShell 手工编辑可能带入 UTF-8 BOM，先剥离再解析
+    const parsed = JSON.parse(fs.readFileSync(CDP_RUNTIME_CONFIG_PATH, 'utf8').replace(/^\uFEFF/, ''));
+    const config = parsed && typeof parsed === 'object' ? parsed : {};
+    cdpRuntimeConfigCache = config;
+    cdpRuntimeConfigCacheTime = now;
+    return config;
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.warn(`[cdp-config] 读取失败: ${error.message}`);
+    }
+    const empty = {};
+    cdpRuntimeConfigCache = empty;
+    cdpRuntimeConfigCacheTime = now;
+    return empty;
+  }
+}
+
+function writeCdpRuntimeConfig(next) {
+  fs.mkdirSync(path.dirname(CDP_RUNTIME_CONFIG_PATH), { recursive: true });
+  const tempPath = `${CDP_RUNTIME_CONFIG_PATH}.tmp`;
+  fs.writeFileSync(tempPath, `${JSON.stringify(next, null, 2)}\n`);
+  fs.renameSync(tempPath, CDP_RUNTIME_CONFIG_PATH);
+  cdpRuntimeConfigCache = next;
+  cdpRuntimeConfigCacheTime = Date.now();
+}
+
+function isPortAvailable(port) {
+  return new Promise(resolve => {
+    const server = require('net').createServer();
+    server.once('error', () => resolve(false));
+    server.once('listening', () => {
+      server.close();
+      resolve(true);
+    });
+    server.listen(port, '127.0.0.1');
+  });
+}
+
+// CDP 路由统一错误出口：CdpError 按契约映射状态码，且保留原始中文错误。
+// 不能走 sendHttpError → normalizeError，否则 "fetch failed" 会被改写成「网络连接失败」。
+function sendCdpError(res, error) {
+  if (isHttpError(error)) {
+    sendHttpError(res, error);
+    return;
+  }
+  const code = error && typeof error.code === 'string' ? error.code : '';
+  if (error instanceof CdpError || CDP_ERROR_HTTP_STATUS[code]) {
+    const statusCode = CDP_ERROR_HTTP_STATUS[code] || 502;
+    sendJson(res, statusCode, {
+      error: error.message || '浏览器操作失败，请稍后重试。',
+      code: code || 'CDP_PROTOCOL',
+    });
+    return;
+  }
+  sendJson(res, 400, { error: normalizeError(error) });
+}
+
 function createHttpError(statusCode, code, message, retryAfterSeconds) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -213,6 +368,95 @@ function createHttpError(statusCode, code, message, retryAfterSeconds) {
 
 function isHttpError(error) {
   return error && typeof error.statusCode === 'number' && typeof error.code === 'string';
+}
+
+function parseIpv6Address(address) {
+  const normalized = String(address || '').trim().toLowerCase().split('%', 1)[0];
+  if (!normalized || (normalized.match(/::/g) || []).length > 1) return null;
+
+  const [leftPart, rightPart] = normalized.includes('::')
+    ? normalized.split('::')
+    : [normalized, null];
+  const parsePart = part => {
+    if (!part) return [];
+    const words = [];
+    for (const token of part.split(':')) {
+      if (!token) return null;
+      if (token.includes('.')) {
+        const octets = token.split('.').map(Number);
+        if (octets.length !== 4 || octets.some(octet => !Number.isInteger(octet) || octet < 0 || octet > 255)) return null;
+        words.push((octets[0] << 8) | octets[1], (octets[2] << 8) | octets[3]);
+        continue;
+      }
+      if (!/^[0-9a-f]{1,4}$/.test(token)) return null;
+      words.push(Number.parseInt(token, 16));
+    }
+    return words;
+  };
+
+  const left = parsePart(leftPart);
+  const right = rightPart === null ? [] : parsePart(rightPart);
+  if (!left || !right) return null;
+  if (rightPart === null) return left.length === 8 ? left : null;
+  const missing = 8 - left.length - right.length;
+  return missing > 0 ? [...left, ...Array(missing).fill(0), ...right] : null;
+}
+
+function isLoopbackAddress(address) {
+  const normalized = String(address || '').trim();
+  if (net.isIP(normalized) === 4) {
+    const octets = normalized.split('.').map(Number);
+    return octets.length === 4 && octets[0] === 127;
+  }
+  if (net.isIP(normalized) !== 6) return false;
+
+  const words = parseIpv6Address(normalized);
+  if (!words) return false;
+  if (words.every((word, index) => index < 7 ? word === 0 : word === 1)) return true;
+  const isIpv4Mapped = words.slice(0, 5).every(word => word === 0) && words[5] === 0xffff;
+  return isIpv4Mapped && (words[6] >> 8) === 127;
+}
+
+function headerHasValue(value) {
+  if (Array.isArray(value)) return value.some((item) => String(item || '').trim());
+  return Boolean(String(value || '').trim());
+}
+
+function firstHeaderValue(value) {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return String(raw || '').trim();
+}
+
+function tokensEqual(provided, expected) {
+  if (!provided || !expected) return false;
+  const left = Buffer.from(provided);
+  const right = Buffer.from(expected);
+  if (left.length !== right.length) return false;
+  return timingSafeEqual(left, right);
+}
+
+function authorizeCdpRequest(req) {
+  if (!isLoopbackAddress(req.socket?.remoteAddress)) {
+    return {
+      ok: false,
+      status: 403,
+      code: 'CDP_LOOPBACK_ONLY',
+      error: '浏览器 CDP 接口仅允许本机回环访问。',
+    };
+  }
+  if (headerHasValue(req.headers?.['x-forwarded-for'])) {
+    const expected = String(getRuntimeEnv().NOVA_CDP_TOKEN || process.env.NOVA_CDP_TOKEN || '').trim();
+    const provided = firstHeaderValue(req.headers?.['x-nova-cdp-token']);
+    if (!tokensEqual(provided, expected)) {
+      return {
+        ok: false,
+        status: 403,
+        code: 'CDP_AUTH_REQUIRED',
+        error: '经代理访问浏览器 CDP 接口需要有效令牌。',
+      };
+    }
+  }
+  return { ok: true };
 }
 
 function getClientIp(req) {
@@ -376,6 +620,111 @@ function ensureImageDir() {
   }
 }
 
+function ensureCdpDir() {
+  try {
+    if (!fs.existsSync(CDP_DIR)) {
+      fs.mkdirSync(CDP_DIR, { recursive: true });
+    }
+    console.log(`[cdp] 商品素材存储目录: ${CDP_DIR}`);
+  } catch (error) {
+    console.error(`[cdp] 无法创建商品素材存储目录: ${CDP_DIR}`, error);
+    process.exit(1);
+  }
+}
+
+// 按常见安装位置查找本机 Chrome/Chromium；NOVA_CHROME_PATH 可显式覆盖。
+function findChromeExecutable() {
+  const candidates = [];
+  if (process.platform === 'darwin') {
+    candidates.push(
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Chromium.app/Contents/MacOS/Chromium',
+      '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+    );
+  } else if (process.platform === 'win32') {
+    const programDirs = [process.env['PROGRAMFILES'], process.env['PROGRAMFILES(X86)'], process.env.LOCALAPPDATA].filter(Boolean);
+    for (const base of programDirs) {
+      candidates.push(path.join(base, 'Google', 'Chrome', 'Application', 'chrome.exe'));
+    }
+    for (const base of programDirs) {
+      candidates.push(path.join(base, 'Microsoft', 'Edge', 'Application', 'msedge.exe'));
+    }
+  } else {
+    candidates.push(
+      '/usr/bin/google-chrome',
+      '/usr/bin/google-chrome-stable',
+      '/usr/bin/chromium-browser',
+      '/usr/bin/chromium',
+      '/snap/bin/chromium',
+    );
+  }
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) return candidate;
+    } catch { /* ignore */ }
+  }
+  return null;
+}
+
+function getCdpImageExtension(mimeType) {
+  const mime = String(mimeType || '').toLowerCase();
+  if (mime.includes('png')) return 'png';
+  if (mime.includes('webp')) return 'webp';
+  if (mime.includes('gif')) return 'gif';
+  return 'jpg';
+}
+
+// 抓取的图片统一落盘到 CDP_DIR，文件名带 url 摘要便于排查，返回对外 localUrl。
+function saveCdpImageToDisk(url, imageBuffer, mimeType) {
+  const urlHash = createHash('sha1').update(String(url)).digest('hex').slice(0, 16);
+  const fileName = `p_${urlHash}_${Date.now()}.${getCdpImageExtension(mimeType)}`;
+  fs.writeFileSync(path.join(CDP_DIR, fileName), imageBuffer);
+  return { fileName, localUrl: `/api/nova/cdp/products/${fileName}` };
+}
+
+// 同一图片 URL 已抓过就直接复用落盘文件：不再经浏览器下载，也不产生重复文件。
+// 复用时触碰 mtime，避免「7 天未使用清理」误删仍被会话引用的图。
+function findCdpImageByUrl(url) {
+  const urlHash = createHash('sha1').update(String(url)).digest('hex').slice(0, 16);
+  try {
+    const hit = fs.readdirSync(CDP_DIR).find(name => name.startsWith(`p_${urlHash}_`));
+    if (!hit) return null;
+    const filePath = path.join(CDP_DIR, hit);
+    const now = new Date();
+    fs.utimesSync(filePath, now, now);
+    return { fileName: hit, localUrl: `/api/nova/cdp/products/${hit}` };
+  } catch {
+    return null;
+  }
+}
+
+function resolveCdpProductFileName(input) {
+  const raw = String(input || '').trim();
+  const fileName = raw.replace(/^\/api\/nova\/cdp\/products\//, '').split(/[\\/]/).pop() || '';
+  if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) return null;
+  if (!/^(p_[a-f0-9]{16}_\d+|shot_\d+)\.(jpg|jpeg|png|webp|gif)$/i.test(fileName)) return null;
+  return fileName;
+}
+
+function purgeCdpProductFiles(files) {
+  const names = [...new Set((Array.isArray(files) ? files : []).map(resolveCdpProductFileName).filter(Boolean))];
+  let deleted = 0;
+  const cdpDirResolved = path.resolve(CDP_DIR);
+  for (const fileName of names) {
+    const filePath = path.resolve(cdpDirResolved, fileName);
+    if (!filePath.startsWith(cdpDirResolved + path.sep)) continue;
+    try {
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        fs.unlinkSync(filePath);
+        deleted += 1;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return deleted;
+}
+
 function getImageExtension(mimeType) {
   if (mimeType?.includes('jpeg') || mimeType?.includes('jpg')) return 'jpg';
   if (mimeType?.includes('webp')) return 'webp';
@@ -526,6 +875,7 @@ function getContentType(filePath) {
     '.jpg': 'image/jpeg',
     '.jpeg': 'image/jpeg',
     '.webp': 'image/webp',
+    '.gif': 'image/gif',
     '.svg': 'image/svg+xml',
     '.ico': 'image/x-icon',
     '.txt': 'text/plain; charset=utf-8',
@@ -690,7 +1040,7 @@ function validateCreatePayload(body) {
   if (!body || typeof body !== 'object') throw new Error('请求体不能为空');
   if (typeof body.apiKey !== 'string' || body.apiKey.trim().length === 0) throw new Error('缺少 API 密钥');
   if (typeof body.baseUrl !== 'string' || body.baseUrl.trim().length === 0) throw new Error('缺少 API 基础地址');
-  if (!VALID_PROTOCOLS.has(body.protocol)) throw new Error('协议类型无效，必须为 google、openai 或 grok');
+  if (!VALID_PROTOCOLS.has(body.protocol)) throw new Error(`协议类型无效，必须为 ${[...VALID_PROTOCOLS].join('、')}`);
   if (body.mode !== 'text-to-image' && body.mode !== 'image-to-image') throw new Error('任务模式无效');
   if (typeof body.prompt !== 'string' || body.prompt.trim().length === 0) throw new Error('提示词不能为空');
   if (typeof body.model !== 'string' || body.model.trim().length === 0) throw new Error('模型名称不能为空');
@@ -832,6 +1182,30 @@ function resolveGptImageRequestSize(request) {
   return getSupportedGptImageSize(request.model, request.outputSize, request.aspectRatio);
 }
 
+function isAntigravityGeminiImageModel(model) {
+  const id = String(model || '').toLowerCase();
+  return id.includes('gemini') && id.includes('image');
+}
+
+function getAntigravityGeminiImageSize(outputSize) {
+  const normalized = String(outputSize || '').trim().toUpperCase();
+  if (normalized === '4K') return '4K';
+  if (normalized === '2K') return '2K';
+  return '1K';
+}
+
+function getAntigravityGeminiQuality(outputSize) {
+  const imageSize = getAntigravityGeminiImageSize(outputSize);
+  if (imageSize === '4K') return 'hd';
+  if (imageSize === '2K') return 'medium';
+  return 'standard';
+}
+
+function resolveOpenAiImageRequestSize(request) {
+  if (isAntigravityGeminiImageModel(request.model)) return resolveGeminiAspectRatio(request);
+  return resolveGptImageRequestSize(request);
+}
+
 function getPromptWithCustomSize(request) {
   const customSize = normalizeCustomImageSize(request.customSize, 4096);
   if (!customSize) return request.prompt;
@@ -845,11 +1219,56 @@ function getGptImageRequestAdvancedParams(request) {
 
 function createGptImageRequestInit(apiKey, request, resolvedSize, options = {}) {
   const prompt = getPromptWithCustomSize(request);
-  const advancedParams = getGptImageRequestAdvancedParams(request);
-  const stream = Boolean(options.stream);
-  const partialImages = Math.min(3, Math.max(0, Number(options.partialImages) || 0));
+  const antigravityGemini = isAntigravityGeminiImageModel(request.model);
+  const advancedParams = antigravityGemini ? null : getGptImageRequestAdvancedParams(request);
+  const stream = antigravityGemini ? false : Boolean(options.stream);
+  const partialImages = antigravityGemini ? 0 : Math.min(3, Math.max(0, Number(options.partialImages) || 0));
+  const antigravityImageSize = antigravityGemini ? getAntigravityGeminiImageSize(request.outputSize) : undefined;
+  const antigravityQuality = antigravityGemini ? getAntigravityGeminiQuality(request.outputSize) : undefined;
 
   if (request.mode === 'image-to-image') {
+    // 实测结论（2026-08-30，birdsun 网关）：
+    //   · OpenAI Images 网关（gpt-image-2）：只认 multipart/form-data 的 image 字段，
+    //     多张参考图可多次 append 'image'（每张都生效，input_tokens 递增），
+    //     JSON images[] 反而会 400（"images[].image_url is required"）。
+    //   · antigravity Geminj 网关：认 image1/image2... 字段。
+    //   · grok 网关：走 JSON images[{type,url}]（见 createGrokImageRequestInit）。
+    // 因此这里按网关类型区分，绝不统一成 JSON images[]。
+    if (antigravityGemini) {
+      const formData = new FormData();
+      formData.append('model', request.model);
+      formData.append('prompt', prompt);
+      formData.append('n', '1');
+      if (resolvedSize) {
+        formData.append('size', resolvedSize);
+        formData.append('aspect_ratio', resolvedSize);
+      }
+      if (antigravityQuality) formData.append('quality', antigravityQuality);
+      if (antigravityImageSize) {
+        formData.append('image_size', antigravityImageSize);
+        formData.append('imageSize', antigravityImageSize);
+      }
+      request.images.forEach((img, index) => {
+        const mimeType = img.mimeType || 'image/png';
+        const extension = mimeType.split('/')[1] || 'png';
+        const bytes = Buffer.from(img.data, 'base64');
+        const blob = new Blob([bytes], { type: mimeType });
+        const filename = `image-${index}.${extension}`;
+        // 第一张同时作为通用 image 字段（兼容只认 image 的网关）
+        if (index === 0) formData.append('image', blob, filename);
+        formData.append(`image${index + 1}`, blob, filename);
+      });
+      return {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: formData,
+      };
+    }
+
+    // OpenAI Images（gpt-image-2）：form-data 多 image 字段保序。
+    // 前端 prompt 里「图1/图2/图3」按 referencedImageIds 顺序在 request.images 中一一对应。
     const formData = new FormData();
     formData.append('model', request.model);
     formData.append('prompt', prompt);
@@ -866,16 +1285,14 @@ function createGptImageRequestInit(apiKey, request, resolvedSize, options = {}) 
         formData.append('style', advancedParams.style);
       }
     }
-    if (resolvedSize) {
-      formData.append('size', resolvedSize);
-    }
-
+    if (resolvedSize) formData.append('size', resolvedSize);
     request.images.forEach((img, index) => {
       const mimeType = img.mimeType || 'image/png';
       const extension = mimeType.split('/')[1] || 'png';
       const bytes = Buffer.from(img.data, 'base64');
       const blob = new Blob([bytes], { type: mimeType });
-      formData.append('image', blob, `image-${index}.${extension}`);
+      const filename = `image-${index}.${extension}`;
+      formData.append('image', blob, filename);
     });
 
     return {
@@ -897,6 +1314,12 @@ function createGptImageRequestInit(apiKey, request, resolvedSize, options = {}) 
       background: advancedParams.background,
       output_format: 'png',
       ...(advancedParams.style === 'vivid' || advancedParams.style === 'natural' ? { style: advancedParams.style } : {}),
+    } : {}),
+    ...(antigravityGemini ? {
+      ...(resolvedSize ? { aspect_ratio: resolvedSize } : {}),
+      ...(antigravityQuality ? { quality: antigravityQuality } : {}),
+      ...(antigravityImageSize ? { imageSize: antigravityImageSize, image_size: antigravityImageSize } : {}),
+      response_format: 'b64_json',
     } : {}),
     ...(request.images.length > 0 ? { image: request.images.map(img => `data:${img.mimeType};base64,${img.data}`) } : {}),
   };
@@ -993,10 +1416,15 @@ function getErrorMessageFromPayload(payload) {
   const type = typeof payload.type === 'string' ? payload.type.toLowerCase() : '';
   if (type === 'error' || type === 'upstream_error') return getMessageFromPayload(payload);
 
+  // DashScope 风格：顶层 {code, message}，没有 error 字段
+  if (typeof payload.code === 'string' && payload.code.trim()) {
+    return getMessageFromPayload(payload);
+  }
+
   return '';
 }
 
-function getUpstreamErrorText(text) {
+function getUpstreamErrorText(text, _status) {
   const trimmed = String(text || '').trim();
   const data = parseJsonSafely(trimmed);
   const message = getErrorMessageFromPayload(data) || getMessageFromPayload(data);
@@ -1136,7 +1564,7 @@ async function parseGptImageResponse(response) {
   const responseText = await response.text();
 
   if (!response.ok) {
-    const errorText = getUpstreamErrorText(responseText);
+    const errorText = getUpstreamErrorText(responseText, response.status);
     throw new Error(`API 请求失败: ${response.status}${errorText ? ` ${errorText}` : ''}`);
   }
 
@@ -1230,6 +1658,9 @@ function createGrokImageRequestInit(apiKey, request, options = {}) {
     if (dataUrls.length === 0) {
       throw new Error('参考图数据无效');
     }
+    if (dataUrls.length > 3) {
+      throw new Error('Grok 图生图最多支持 3 张参考图');
+    }
     const payload = {
       model: request.model,
       prompt,
@@ -1237,7 +1668,7 @@ function createGrokImageRequestInit(apiKey, request, options = {}) {
       ...(stream ? { stream: true } : {}),
       ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}),
       ...(resolution ? { resolution } : {}),
-      ...(dataUrls.length === 1 ? { image: dataUrls[0] } : { images: dataUrls }),
+      images: dataUrls.map(url => ({ type: 'image_url', url })),
     };
     return {
       method: 'POST',
@@ -1280,6 +1711,63 @@ async function requestGrokImage(apiKey, request, options = {}) {
   return parseGptImageResponse(response);
 }
 
+// 豆包 Seedream（ark）：文生图/图生图统一走 /v3/images/generations，
+// 参考图以 image 参数（data URL 数组）传入，响应按 b64_json 解析。
+async function requestDoubaoImage(apiKey, request, options = {}) {
+  const baseUrl = options.baseUrl || DEFAULT_ARK_BASE_URL;
+  const url = buildDoubaoImagesUrl(baseUrl);
+  const size = resolveDoubaoImageSize(request, req => resolveGptImageRequestSize(req));
+  const payload = buildDoubaoImagePayload(request, size);
+  const response = await fetchWithTimeout(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  return parseGptImageResponse(response);
+}
+
+// 阿里云百炼 Token Plan（DashScope multimodal-generation）：
+// 请求体是 { model, input: { messages: [{ role, content: [{text}, {image}] }] }, parameters: { size } }
+// 响应在 output.choices[0].message.content[0].image（URL 字符串）
+async function requestAlibabaDashScopeImage(apiKey, request, options = {}) {
+  const baseUrl = options.baseUrl || DEFAULT_DASHSCOPE_BASE_URL;
+  const url = buildDashScopeImageUrl(baseUrl);
+  const size = resolveGptImageRequestSize(request);
+  const payload = buildDashScopeImagePayload(request, size);
+  const response = await fetchWithTimeout(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(getErrorMessageFromPayload(parseJsonSafely(text)) || `HTTP ${response.status}: ${text.slice(0, 200)}`);
+  }
+  // 与 openai/google 路径一致：网关拦截或 baseUrl 配错时上游常返回 HTML 错误页，
+  // 直接 response.json() 会抛出难懂的解析错误，先做显式判断。
+  const responseText = await response.text();
+  if (isLikelyHtmlResponse(responseText)) {
+    throw new Error('上游返回了 HTML 页面而不是 JSON。通常是 baseUrl 配置错误、请求被站点网关拦截，或该地址并非兼容的图片 API。');
+  }
+  const data = parseJsonSafely(responseText);
+  if (!data) {
+    const summary = summarizeUnexpectedResponse(responseText);
+    throw new Error(summary ? `响应 JSON 格式无效: ${summary}` : '响应 JSON 格式无效');
+  }
+  const errorMessage = getErrorMessageFromPayload(data);
+  if (errorMessage) throw new Error(errorMessage);
+  const imageUrl = extractDashScopeImageUrl(data);
+  if (!imageUrl) throw new Error('响应中无图片 URL');
+  // 下游约定：http(s) URL 必须带 URL: 前缀，否则会被当成 base64 落盘成乱码
+  return `URL:${imageUrl}`;
+}
+
 // ===== 加强网络连接：启用 TCP keepalive，防止 Docker 回环连接被静默断开 =====
 // Node.js 内置 fetch 基于 undici，默认不发送 TCP keepalive，
 // 导致长时间等待响应（如 4K 图片生成）时连接被 Docker 网络层丢弃。
@@ -1315,8 +1803,9 @@ async function generateNovaImage(apiKey, request) {
   // 开源版：根据前端传入的 protocol 字段路由到对应的 API 协议
   const baseUrl = request.baseUrl || resolveNovaApiBaseUrl();
   if (request.protocol === 'openai') {
-    const resolvedSize = resolveGptImageRequestSize(request);
-    if (!IMAGE_STREAM_ENABLED) {
+    const resolvedSize = resolveOpenAiImageRequestSize(request);
+    const antigravityGemini = isAntigravityGeminiImageModel(request.model);
+    if (!IMAGE_STREAM_ENABLED || antigravityGemini) {
       return requestGptImage(apiKey, request, resolvedSize, { baseUrl });
     }
     try {
@@ -1334,6 +1823,12 @@ async function generateNovaImage(apiKey, request) {
   if (request.protocol === 'grok') {
     return requestGrokImage(apiKey, request, { baseUrl });
   }
+  if (request.protocol === 'doubao') {
+    return requestDoubaoImage(apiKey, request, { baseUrl });
+  }
+  if (request.protocol === 'alibaba-dashscope') {
+    return requestAlibabaDashScopeImage(apiKey, request, { baseUrl });
+  }
   // 默认走 Google Gemini 协议
   return generateNovaGeminiImage(apiKey, request, { baseUrl });
 }
@@ -1341,16 +1836,57 @@ async function generateNovaImage(apiKey, request) {
 function extractGeminiImagePayload(data) {
   const imagePart = data?.candidates?.[0]?.content?.parts?.find(part => part?.inlineData?.data || part?.inline_data?.data);
   const inlineData = imagePart?.inlineData || imagePart?.inline_data;
-  if (!inlineData?.data) throw new Error('响应中无图片数据');
+  if (!inlineData?.data) {
+    const reasons = [
+      data?.promptFeedback?.blockReason,
+      data?.candidates?.[0]?.finishReason,
+    ].filter(reason => typeof reason === 'string' && reason.trim());
+    throw new Error(reasons.length ? `响应中无图片数据 (${reasons.join(', ')})` : '响应中无图片数据');
+  }
   return inlineData.data;
+}
+
+const GEMINI_NATIVE_IMAGE_SIZES = new Set(['1K', '2K', '4K']);
+const GEMINI_NATIVE_ASPECT_RATIOS = new Set([
+  '1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9',
+  '1:4', '1:8', '4:1', '8:1',
+]);
+
+function inferAspectRatioFromPrompt(prompt) {
+  const text = String(prompt || '');
+  const match = text.match(/(\d{1,2})\s*[:：]\s*(\d{1,2})/);
+  if (match) {
+    const ratio = `${Number(match[1])}:${Number(match[2])}`;
+    if (GEMINI_NATIVE_ASPECT_RATIOS.has(ratio)) return ratio;
+  }
+  if (/淘宝主图|天猫主图/.test(text)) return '3:4';
+  return undefined;
+}
+
+function resolveGeminiAspectRatio(request = {}) {
+  const fromPrompt = inferAspectRatioFromPrompt(request.prompt);
+  if (fromPrompt) return fromPrompt;
+  const rawRatio = String(request.aspectRatio || '').trim();
+  if (GEMINI_NATIVE_ASPECT_RATIOS.has(rawRatio)) return rawRatio;
+  return '1:1';
+}
+
+function resolveGeminiImageConfig(request = {}) {
+  const rawSize = String(request.outputSize || '').trim().toUpperCase();
+  return {
+    imageSize: GEMINI_NATIVE_IMAGE_SIZES.has(rawSize) ? rawSize : '1K',
+    aspectRatio: resolveGeminiAspectRatio(request),
+  };
 }
 
 async function generateNovaGeminiImage(apiKey, request, options = {}) {
   const baseUrl = options.baseUrl || resolveNovaApiBaseUrl();
+  const images = Array.isArray(request.images) ? request.images : [];
   const parts = [
     { text: getPromptWithCustomSize(request) },
-    ...request.images.map(img => ({ inlineData: { data: img.data, mimeType: img.mimeType } })),
+    ...images.map(img => ({ inlineData: { data: img.data, mimeType: img.mimeType || 'image/png' } })),
   ];
+  const imageConfig = resolveGeminiImageConfig(request);
   const response = await fetchWithTimeout(`${baseUrl}/v1beta/models/${encodeURIComponent(request.model)}:generateContent`, {
     method: 'POST',
     headers: {
@@ -1362,7 +1898,7 @@ async function generateNovaGeminiImage(apiKey, request, options = {}) {
       generationConfig: {
         temperature: request.temperature,
         responseModalities: ['IMAGE'],
-        imageConfig: { imageSize: request.outputSize, aspectRatio: request.aspectRatio },
+        imageConfig,
       },
     }),
   });
@@ -1480,6 +2016,24 @@ async function runTask(taskId) {
     return;
   }
 
+  try {
+    await runTaskBody(taskId, task, apiKey);
+  } catch (error) {
+    // 任何未预期异常（请求体损坏、字段缺失等）都必须落终态并释放内存，
+    // 否则任务会永久卡在 processing、taskRefImages/apiKeys 永驻（重启才能自愈）。
+    const message = normalizeError(error);
+    const completedAt = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + TASK_TTL_MS).toISOString();
+    db.prepare(`
+      UPDATE tasks SET status = 'failed', error = ?, completed_at = ?, expires_at = ? WHERE id = ?
+    `).run(`任务执行异常: ${message}`, completedAt, expiresAt, taskId);
+    cleanupTaskRuntimeState(taskId);
+    broadcastTask(taskId);
+    broadcastQueueStatus();
+  }
+}
+
+async function runTaskBody(taskId, task, apiKey) {
   const request = JSON.parse(task.request_json);
   const refImages = taskRefImages.get(taskId);
   if (refImages && refImages.length > 0) {
@@ -2216,12 +2770,20 @@ async function handleApi(req, res, pathname) {
     }
 
     // ===== 模型检查代理（按协议查询模型列表） =====
-    if (req.method === 'GET' && apiPathname === '/api/nova/proxy/models') {
+    if ((req.method === 'GET' || req.method === 'POST') && apiPathname === '/api/nova/proxy/models') {
       try {
         const parsed = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-        const baseUrl = parsed.searchParams.get('baseUrl');
-        const apiKey = parsed.searchParams.get('apiKey');
-        const protocol = parsed.searchParams.get('protocol') || 'openai';
+        const headerBaseUrl = firstHeaderValue(req.headers['x-nova-base-url']);
+        const headerApiKey = firstHeaderValue(req.headers['x-nova-api-key']);
+        let baseUrl = headerBaseUrl || parsed.searchParams.get('baseUrl');
+        let apiKey = headerApiKey || parsed.searchParams.get('apiKey');
+        let protocol = parsed.searchParams.get('protocol') || 'openai';
+        if (req.method === 'POST') {
+          const body = await readJsonBody(req);
+          baseUrl = body.baseUrl || headerBaseUrl || baseUrl;
+          apiKey = body.apiKey || headerApiKey || apiKey;
+          protocol = body.protocol || protocol;
+        }
         if (!baseUrl || !apiKey) {
           sendJson(res, 400, { error: 'Missing baseUrl or apiKey' });
           return true;
@@ -2248,6 +2810,359 @@ async function handleApi(req, res, pathname) {
         sendJson(res, response.status, data);
       } catch (error) {
         sendJson(res, 502, { error: normalizeError(error) });
+      }
+      return true;
+    }
+
+    // ===== 浏览器 CDP 工具（连接本机 Chrome 抓取淘宝商品素材） =====
+    // CDP_ENABLED 为启动级开关：置 false 时返回明确指导说明的 404。
+    if (apiPathname.startsWith('/api/nova/cdp/')) {
+      if (!CDP_ENABLED) {
+        sendJson(res, 404, {
+          error: '浏览器 CDP 功能未启用，请在 backend/.env 中配置 NOVA_CDP_ENABLED=true 并重启服务。',
+          code: 'CDP_DISABLED',
+        });
+        return true;
+      }
+      // 只信任 TCP socket 的真实来源。带 X-Forwarded-For 时视为经代理，必须再校验令牌。
+      const cdpAuth = authorizeCdpRequest(req);
+      if (!cdpAuth.ok) {
+        sendJson(res, cdpAuth.status, {
+          error: cdpAuth.error,
+          code: cdpAuth.code,
+        });
+        return true;
+      }
+      try {
+        if (req.method === 'GET' && apiPathname === '/api/nova/cdp/status') {
+          // 状态探测的本职就是判断可达性：浏览器不在线（或探测出错）都按
+          // 200 + reachable:false 返回，不向前端抛错。
+          const cdpConfig = getCdpConfig();
+          try {
+            const status = await getCdpStatus(cdpConfig);
+            sendJson(res, 200, { host: cdpConfig.host, port: cdpConfig.port, ...status });
+          } catch (statusError) {
+            console.warn('[cdp] 浏览器状态探测失败:', statusError?.message || statusError);
+            sendJson(res, 200, { reachable: false, host: cdpConfig.host, port: cdpConfig.port });
+          }
+          return true;
+        }
+
+        if (req.method === 'GET' && apiPathname === '/api/nova/cdp/config') {
+          const cdpConfig = getCdpConfig();
+          sendJson(res, 200, { host: cdpConfig.host, port: cdpConfig.port });
+          return true;
+        }
+
+        if (req.method === 'POST' && apiPathname === '/api/nova/cdp/config') {
+          const body = await readJsonBody(req);
+          const nextPort = parseIntegerEnv(body?.port, 0, { min: 1, max: 65535 });
+          if (!nextPort) {
+            throw createHttpError(400, 'INVALID_PARAMS', '缺少有效的 port 参数（1-65535）。');
+          }
+          const current = readCdpRuntimeConfig();
+          const probe = await getCdpStatus({ ...getCdpConfig(), port: nextPort });
+          if (!probe.reachable) {
+            const available = await isPortAvailable(nextPort);
+            if (!available) {
+              throw createHttpError(409, 'PORT_IN_USE', `端口 ${nextPort} 已被占用，且不是有效的浏览器调试端口。`);
+            }
+          }
+          writeCdpRuntimeConfig({ ...current, port: nextPort });
+          const cdpConfig = getCdpConfig();
+          const status = await getCdpStatus(cdpConfig);
+          sendJson(res, 200, { host: cdpConfig.host, port: cdpConfig.port, ...status });
+          return true;
+        }
+
+        if (req.method === 'GET' && apiPathname === '/api/nova/cdp/targets') {
+          const result = await listPageTargets(getCdpConfig());
+          const targets = Array.isArray(result) ? result : (Array.isArray(result?.targets) ? result.targets : []);
+          sendJson(res, 200, { targets });
+          return true;
+        }
+
+        if (req.method === 'POST' && apiPathname === '/api/nova/cdp/extract') {
+          const body = await readJsonBody(req);
+          const targetId = String(body?.targetId || '').trim();
+          if (!targetId) {
+            throw createHttpError(400, 'INVALID_PARAMS', '缺少 targetId 参数。');
+          }
+          const product = await evaluateInPage({ ...getCdpConfig(), targetId, expression: TAOBAO_EXTRACT_EXPRESSION });
+          const title = String(product?.title || '').trim();
+          const mainImages = Array.isArray(product?.mainImages) ? product.mainImages : [];
+          if (!title && mainImages.length === 0) {
+            throw createHttpError(422, 'EXTRACT_EMPTY', '未能从当前页面提取到商品标题或主图，该页面可能不是淘宝/天猫商品详情页。');
+          }
+          sendJson(res, 200, { product });
+          return true;
+        }
+
+        if (req.method === 'POST' && apiPathname === '/api/nova/cdp/fetch-image') {
+          const body = await readJsonBody(req);
+          const targetId = String(body?.targetId || '').trim();
+          if (!targetId) {
+            throw createHttpError(400, 'INVALID_PARAMS', '缺少 targetId 参数。');
+          }
+          const cdpConfig = getCdpConfig();
+          const fetchOneToDisk = async imageUrl => {
+            // 同一 URL 抓过就直接复用，避免每轮对话/重抓重复下载同一批图
+            const cached = findCdpImageByUrl(imageUrl);
+            if (cached) return cached.localUrl;
+            const resource = await fetchResourceInPage({ ...cdpConfig, targetId, url: imageUrl });
+            const imageBuffer = resource?.data;
+            if (!Buffer.isBuffer(imageBuffer) || imageBuffer.length === 0) {
+              throw new Error('浏览器未返回有效的图片数据。');
+            }
+            return saveCdpImageToDisk(imageUrl, imageBuffer, resource?.mimeType).localUrl;
+          };
+
+          if (body?.urls !== undefined) {
+            if (!Array.isArray(body.urls) || body.urls.length === 0) {
+              throw createHttpError(400, 'INVALID_PARAMS', 'urls 必须是非空数组。');
+            }
+            if (body.urls.length > 30) {
+              throw createHttpError(400, 'INVALID_PARAMS', '单次最多抓取 30 张图片，请分批提交。');
+            }
+            const results = [];
+            for (const item of body.urls) {
+              const imageUrl = String(item || '').trim();
+              if (!imageUrl) {
+                results.push({ url: item, error: '图片地址为空。' });
+                continue;
+              }
+              try {
+                results.push({ url: imageUrl, localUrl: await fetchOneToDisk(imageUrl) });
+              } catch (itemError) {
+                const message = itemError instanceof CdpError
+                  ? itemError.message
+                  : normalizeError(itemError);
+                results.push({ url: imageUrl, error: message });
+              }
+            }
+            sendJson(res, 200, { results });
+            return true;
+          }
+
+          const imageUrl = String(body?.url || '').trim();
+          if (!imageUrl) {
+            throw createHttpError(400, 'INVALID_PARAMS', '缺少 url 或 urls 参数。');
+          }
+          sendJson(res, 200, { localUrl: await fetchOneToDisk(imageUrl) });
+          return true;
+        }
+
+        if (req.method === 'POST' && apiPathname === '/api/nova/cdp/screenshot') {
+          const body = await readJsonBody(req);
+          const targetId = String(body?.targetId || '').trim();
+          if (!targetId) {
+            throw createHttpError(400, 'INVALID_PARAMS', '缺少 targetId 参数。');
+          }
+          const pngBuffer = await capturePageScreenshot({ ...getCdpConfig(), targetId, fullPage: Boolean(body?.fullPage) });
+          if (!Buffer.isBuffer(pngBuffer) || pngBuffer.length === 0) {
+            throw new Error('浏览器未返回有效的截图数据。');
+          }
+          const fileName = `shot_${Date.now()}.png`;
+          fs.writeFileSync(path.join(CDP_DIR, fileName), pngBuffer);
+          sendJson(res, 200, { localUrl: `/api/nova/cdp/products/${fileName}` });
+          return true;
+        }
+
+        if (req.method === 'POST' && apiPathname === '/api/nova/cdp/launch') {
+          await readJsonBody(req); // body 约定为 {}，仍读取以排空请求流
+          if (launchInProgress) {
+            sendJson(res, 200, { ok: false, message: '浏览器正在启动中，请稍候重试。' });
+            return true;
+          }
+          const cdpConfig = getCdpConfig();
+          const existing = await getCdpStatus(cdpConfig);
+          if (existing.reachable) {
+            sendJson(res, 200, {
+              ok: true,
+              reused: true,
+              message: `已连接到现有调试浏览器（端口 ${cdpConfig.port}，${existing.browser || '浏览器'}）。`,
+              port: cdpConfig.port,
+              browser: existing.browser,
+            });
+            return true;
+          }
+          const portAvailable = await isPortAvailable(cdpConfig.port);
+          if (!portAvailable) {
+            throw createHttpError(409, 'PORT_IN_USE', `端口 ${cdpConfig.port} 已被占用，且不是有效的浏览器调试端口。`);
+          }
+          if (!cdpConfig.launchEnabled) {
+            throw createHttpError(403, 'CDP_LAUNCH_DISABLED', `服务器已禁用自动启动浏览器（NOVA_CDP_LAUNCH_ENABLED=false）。请手动启动 Chrome 并附加 --remote-debugging-port=${cdpConfig.port} 参数后重试。`);
+          }
+          const overridePath = String(process.env.NOVA_CHROME_PATH || '').trim();
+          let executable = null;
+          if (overridePath) {
+            if (!fs.existsSync(overridePath)) {
+              sendJson(res, 200, { ok: false, message: `NOVA_CHROME_PATH 指定的浏览器路径不存在：${overridePath}，请修正后重试。` });
+              return true;
+            }
+            executable = overridePath;
+          } else {
+            executable = findChromeExecutable();
+          }
+          if (!executable) {
+            sendJson(res, 200, { ok: false, message: `未找到本机 Chrome 浏览器。请安装 Chrome，或设置 NOVA_CHROME_PATH 指向浏览器可执行文件；也可以手动启动 Chrome 并附加 --remote-debugging-port=${cdpConfig.port} 参数。` });
+            return true;
+          }
+          const profileDir = path.join(path.dirname(CDP_DIR), 'chrome-profile');
+          fs.mkdirSync(profileDir, { recursive: true });
+          launchInProgress = true;
+          const child = spawn(executable, [
+            `--remote-debugging-port=${cdpConfig.port}`,
+            `--remote-debugging-address=127.0.0.1`,
+            `--user-data-dir=${profileDir}`,
+            '--no-first-run',
+            '--no-default-browser-check',
+          ], { detached: true, stdio: 'ignore' });
+          child.on('error', launchError => {
+            console.warn('[cdp] 启动浏览器进程失败:', launchError?.message || launchError);
+            launchInProgress = false;
+          });
+          child.unref();
+          // 等调试端口真正起来再返回，避免 Agent 立刻 open 时还是连不上
+          const launchDeadline = Date.now() + 15000;
+          let status = { reachable: false };
+          while (Date.now() < launchDeadline) {
+            status = await getCdpStatus(cdpConfig);
+            if (status.reachable) break;
+            await new Promise(resolve => setTimeout(resolve, 400));
+          }
+          if (!status.reachable) {
+            launchInProgress = false;
+            sendJson(res, 200, {
+              ok: false,
+              message: `已尝试启动浏览器（调试端口 ${cdpConfig.port}），但端口仍未就绪。请确认本机已安装 Chrome/Edge，或手动用 --remote-debugging-port=${cdpConfig.port} 启动后再试。`,
+              profileDir,
+              port: cdpConfig.port,
+            });
+            return true;
+          }
+          launchInProgress = false;
+          sendJson(res, 200, {
+            ok: true,
+            message: `已启动调试浏览器（端口 ${cdpConfig.port}，${status.browser || '浏览器'}）。这是独立配置，不含日常浏览器登录态；第一次用请在该窗口登录淘宝。`,
+            profileDir,
+            port: cdpConfig.port,
+            browser: status.browser,
+          });
+          return true;
+        }
+
+        if (req.method === 'POST' && apiPathname === '/api/nova/cdp/evaluate') {
+          const cdpConfig = getCdpConfig();
+          // 任意表达式执行风险较高，默认关闭，需显式开启。
+          if (!cdpConfig.evalEnabled) {
+            throw createHttpError(403, 'CDP_EVAL_DISABLED', '任意表达式执行默认关闭（NOVA_CDP_EVAL_ENABLED=false）。确有调试需要时，请在 .env 中设置 NOVA_CDP_EVAL_ENABLED=true 后重试。');
+          }
+          const body = await readJsonBody(req);
+          const targetId = String(body?.targetId || '').trim();
+          const expression = String(body?.expression || '');
+          if (!targetId || !expression.trim()) {
+            throw createHttpError(400, 'INVALID_PARAMS', '缺少 targetId 或 expression 参数。');
+          }
+          const value = await evaluateInPage({ ...cdpConfig, targetId, expression });
+          sendJson(res, 200, { value: value === undefined ? null : value });
+          return true;
+        }
+
+        if (req.method === 'POST' && apiPathname === '/api/nova/cdp/open') {
+          const body = await readJsonBody(req);
+          const url = String(body?.url || '').trim();
+          if (!url || !/^https?:\/\//i.test(url)) {
+            throw createHttpError(400, 'INVALID_PARAMS', '缺少 url 参数或协议不受支持（仅支持 http/https）。');
+          }
+          const cdpConfig = getCdpConfig();
+          let target;
+          let reused = false;
+          try {
+            const targets = await listPageTargets(cdpConfig);
+            target = targets.find(item => item.url === url);
+            reused = Boolean(target);
+          } catch {
+            // 标签页列表不可用时保持原有新开标签页路径。
+          }
+          if (!target) target = await openTarget({ ...cdpConfig, url });
+          if (!reused) {
+            // best-effort 等待页面加载：每 500ms 查一次 document.readyState，直到
+            // 'complete' 或累计 10 秒；等待过程中的任何错误都忽略，不影响返回。
+            const waitDeadline = Date.now() + 10000;
+            while (Date.now() < waitDeadline) {
+              try {
+                const readyState = await evaluateInPage({ ...cdpConfig, targetId: target.id, expression: 'document.readyState' });
+                if (readyState === 'complete') break;
+              } catch {
+                // 忽略等待过程中的错误
+              }
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+          }
+          const response = { targetId: target.id, url };
+          if (reused) response.reused = true;
+          sendJson(res, 200, response);
+          return true;
+        }
+
+        if (req.method === 'POST' && apiPathname === '/api/nova/cdp/read-page') {
+          const body = await readJsonBody(req);
+          const targetId = String(body?.targetId || '').trim();
+          if (!targetId) {
+            throw createHttpError(400, 'INVALID_PARAMS', '缺少 targetId 参数。');
+          }
+          const maxChars = parseIntegerEnv(body?.maxChars, READ_PAGE_MAX_CHARS_DEFAULT, { min: 1, max: READ_PAGE_MAX_CHARS_LIMIT });
+          // 固定表达式注入（不走 /cdp/evaluate 的开放入口），避免任意脚本执行。
+          const result = await evaluateInPage({ ...getCdpConfig(), targetId, expression: buildReadPageExpression(maxChars) });
+          const payload = result || {};
+          sendJson(res, 200, {
+            title: typeof payload.title === 'string' ? payload.title : '',
+            url: typeof payload.url === 'string' ? payload.url : '',
+            text: typeof payload.text === 'string' ? payload.text : '',
+          });
+          return true;
+        }
+
+        if (req.method === 'POST' && apiPathname === '/api/nova/cdp/purge-images') {
+          const body = await readJsonBody(req);
+          sendJson(res, 200, { deleted: purgeCdpProductFiles(body?.files) });
+          return true;
+        }
+
+        // 已落盘商品素材的静态服务（防路径穿越）
+        const productFileMatch = apiPathname.match(/^\/api\/nova\/cdp\/products\/(.+)$/);
+        if (req.method === 'GET' && productFileMatch) {
+          let fileName;
+          try {
+            fileName = decodeURIComponent(productFileMatch[1]);
+          } catch {
+            throw createHttpError(400, 'INVALID_PARAMS', '商品素材文件名编码无效。');
+          }
+          if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) {
+            throw createHttpError(400, 'INVALID_PARAMS', '非法的商品素材文件名。');
+          }
+          const cdpDirResolved = path.resolve(CDP_DIR);
+          const filePath = path.resolve(cdpDirResolved, fileName);
+          if (!filePath.startsWith(cdpDirResolved + path.sep)) {
+            throw createHttpError(400, 'INVALID_PARAMS', '非法的商品素材文件名。');
+          }
+          if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+            sendJson(res, 404, { error: 'Not Found' });
+            return true;
+          }
+          const stat = fs.statSync(filePath);
+          pipeFileToResponse(res, filePath, 200, {
+            'Content-Type': getContentType(filePath),
+            'Content-Length': stat.size,
+            'Cache-Control': 'private, max-age=3600',
+          });
+          return true;
+        }
+
+        sendJson(res, 404, { error: 'Not Found' });
+      } catch (error) {
+        sendCdpError(res, error);
       }
       return true;
     }
@@ -2298,6 +3213,7 @@ async function handleApi(req, res, pathname) {
 
 initDatabase();
 ensureImageDir();
+ensureCdpDir();
 cleanupExpiredTasks();
 setInterval(cleanupExpiredTasks, CLEANUP_INTERVAL_MS).unref();
 setInterval(cleanupRateLimitBuckets, CLEANUP_INTERVAL_MS).unref();
@@ -2354,6 +3270,8 @@ const startServer = () => {
   wsServerRef = wss;
   httpServerRef = httpServer;
 };
+
+module.exports = { isLoopbackAddress };
 
 registerShutdownHandlers();
 

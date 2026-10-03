@@ -31,10 +31,12 @@ import {
   getOutputSizeLabel,
   getSizeOptions,
   getValidOutputSizes,
+  getSupportsTemperature,
   DEFAULT_GPT_IMAGE_ADVANCED_PARAMS,
   getGptImageAdvancedParamsForModel,
   normalizeCustomImageSize,
   normalizeModel,
+  sanitizeLayoutForModel,
   supportsGptImageAdvancedParams,
   supportsAutoLayout,
   supportsCustomSize,
@@ -42,6 +44,7 @@ import {
   type GptImageBackground,
   type GptImageQuality,
   type GptImageStyle,
+  PARALLEL_COUNT_VALUES,
   type ParallelCount,
 } from '@/lib/model-capabilities';
 import { prepareUploadImage, getOptimizationBadge } from '@/lib/upload-image-cache';
@@ -194,21 +197,13 @@ export function ImageToImageForm({
   const handleModelChange = (newModel: ModelId) => {
     setModel(newModel);
     setGptImageAdvancedParams(prev => getGptImageAdvancedParamsForModel(newModel, prev));
-    const sizeOptions = getSizeOptions(newModel);
-    const nextOutputSize = outputSize === 'auto' && supportsAutoLayout(newModel)
-      ? 'auto'
-      : (sizeOptions.find(s => s.value === outputSize)?.value || sizeOptions[0].value);
-    if (nextOutputSize !== outputSize) {
-      setOutputSize(nextOutputSize);
-    }
-    if (supportsCustomSize(newModel)) {
+    const sanitized = sanitizeLayoutForModel(newModel, outputSize, aspectRatio);
+    setOutputSize(sanitized.outputSize);
+    setAspectRatio(sanitized.aspectRatio);
+    if (supportsCustomSize(newModel) && sanitized.outputSize !== 'auto') {
       setCustomSize(prev => normalizeCustomImageSize(prev, getCustomSizeMaxSide(newModel)));
     } else {
       setCustomSize(undefined);
-    }
-    const aspectOptions = getAspectRatioOptions(newModel, nextOutputSize);
-    if (!aspectOptions.find(a => a.value === aspectRatio)) {
-      setAspectRatio(aspectOptions[0]?.value || '1:1');
     }
   };
 
@@ -289,7 +284,7 @@ export function ImageToImageForm({
   // 当模型改变时，重置分辨率和比例
   const sizeOptions = getSizeOptions(model);
   const aspectRatioOptions = getAspectRatioOptions(model, outputSize);
-  const supportsTemperature = !isGptImageModel(model);
+  const supportsTemperature = getSupportsTemperature(model);
   const supportsAdvancedParams = supportsGptImageAdvancedParams(model);
   const autoLayoutAvailable = supportsAutoLayout(model);
   const autoLayoutLocked = autoLayoutAvailable && outputSize === 'auto';
@@ -309,17 +304,18 @@ export function ImageToImageForm({
     const saved = loadJsonFromStorage<I2ISettings>(I2I_SETTINGS_KEY);
 
     const nextModel = normalizeModel(useInitial && initialData?.model ? initialData.model : saved.model);
-    const validSizes = getValidOutputSizes(nextModel);
-    const nextOutputSize: OutputSize = useInitial && initialData?.outputSize && validSizes.includes(initialData.outputSize)
+    const candidateOutputSize: OutputSize = useInitial && initialData?.outputSize
       ? initialData.outputSize
-      : (saved.outputSize && validSizes.includes(saved.outputSize) ? saved.outputSize : validSizes[0]);
+      : (saved.outputSize || '1K');
+    const candidateAspectRatio: AspectRatio = useInitial && initialData?.aspectRatio
+      ? initialData.aspectRatio
+      : (saved.aspectRatio || '1:1');
+    const sanitized = sanitizeLayoutForModel(nextModel, candidateOutputSize, candidateAspectRatio);
+    const nextOutputSize = sanitized.outputSize;
+    const nextAspectRatio = sanitized.aspectRatio;
     const nextCustomSize = supportsCustomSize(nextModel) && nextOutputSize !== 'auto'
       ? normalizeCustomImageSize(useInitial ? initialData?.customSize : saved.customSize, getCustomSizeMaxSide(nextModel))
       : undefined;
-    const validRatios = getAspectRatioOptions(nextModel, nextOutputSize).map(a => a.value);
-    const nextAspectRatio: AspectRatio = useInitial && initialData?.aspectRatio && validRatios.includes(initialData.aspectRatio)
-      ? initialData.aspectRatio
-      : (saved.aspectRatio && validRatios.includes(saved.aspectRatio) ? saved.aspectRatio : (validRatios[0] || '1:1'));
     const nextTemperature = useInitial && typeof initialData?.temperature === 'number' && initialData.temperature >= 0 && initialData.temperature <= 2
       ? initialData.temperature
       : (typeof saved.temperature === 'number' && saved.temperature >= 0 && saved.temperature <= 2 ? saved.temperature : 1);
@@ -328,9 +324,9 @@ export function ImageToImageForm({
       style: useInitial ? initialData?.gptImageStyle : saved.gptImageStyle,
       background: useInitial ? initialData?.gptImageBackground : saved.gptImageBackground,
     });
-    const nextParallelCount: ParallelCount = useInitial && initialData?.parallelCount && [1, 2, 3, 4].includes(initialData.parallelCount)
+    const nextParallelCount: ParallelCount = useInitial && initialData?.parallelCount && PARALLEL_COUNT_VALUES.includes(initialData.parallelCount)
       ? initialData.parallelCount
-      : (saved.parallelCount && [1, 2, 3, 4].includes(saved.parallelCount) ? saved.parallelCount : 1);
+      : (saved.parallelCount && PARALLEL_COUNT_VALUES.includes(saved.parallelCount) ? saved.parallelCount : 1);
 
     setModel(nextModel);
     setOutputSize(nextOutputSize);
@@ -873,7 +869,7 @@ export function ImageToImageForm({
               <span className="text-[11px]">x{parallelCount}</span>
             </PopoverTrigger>
             <PopoverContent className="w-36 p-1" align="start">
-              {[1, 2, 3, 4].map((count) => (
+              {PARALLEL_COUNT_VALUES.map((count) => (
                 <button
                   key={count}
                   onClick={() => handleParallelCountChange(count as ParallelCount)}
