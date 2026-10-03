@@ -30,6 +30,7 @@ export interface ProviderModelEntry {
   imageConfigId?: string;
   textConfigId?: string;
   builtinPreset?: BuiltinImagePresetId;
+  imageProtocol?: ProviderProtocol;
   textProtocol?: TextProviderProtocol;
   maxRefImages?: number;
   maxOutputSize?: ImageOutputSize;
@@ -237,6 +238,7 @@ export function normalizeProviderModelEntry(raw: Partial<ProviderModelEntry> | n
     imageConfigId: String(raw?.imageConfigId || '').trim() || undefined,
     textConfigId: String(raw?.textConfigId || '').trim() || undefined,
     builtinPreset: raw?.builtinPreset,
+    imageProtocol: ['google', 'openai', 'grok', 'doubao', 'alibaba-dashscope'].includes(String(raw?.imageProtocol)) ? raw?.imageProtocol : undefined,
     textProtocol: isTextProviderProtocol(raw?.textProtocol) ? raw.textProtocol : undefined,
     maxRefImages: raw?.maxRefImages,
     maxOutputSize: raw?.maxOutputSize,
@@ -388,6 +390,7 @@ export function migrateLegacyProviders(
       if (!current.uses.includes('image')) current.uses.push('image');
       current.imageConfigId = model.id;
       current.builtinPreset = model.builtinPreset;
+      current.imageProtocol = model.protocol;
       continue;
     }
     provider.models.push({
@@ -397,6 +400,7 @@ export function migrateLegacyProviders(
       uses: ['image'],
       imageConfigId: model.id,
       builtinPreset: model.builtinPreset,
+      imageProtocol: model.protocol,
       maxRefImages: model.maxRefImages,
       maxOutputSize: model.maxOutputSize,
       supportsAdvancedParams: model.supportsAdvancedParams,

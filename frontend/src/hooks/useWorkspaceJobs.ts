@@ -29,8 +29,8 @@ function loadInitialJobs(): StoredJob[] {
 }
 
 export function useWorkspaceJobs() {
-  const [hasApiKey, setHasApiKey] = useState(() => hasAnyApiKey());
-  const [jobs, setJobs] = useState<StoredJob[]>(loadInitialJobs);
+  const [hasApiKey, setHasApiKey] = useState(false);
+  const [jobs, setJobs] = useState<StoredJob[]>([]);
   const jobsRef = useRef(jobs);
   useEffect(() => { jobsRef.current = jobs; }, [jobs]);
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
@@ -39,46 +39,65 @@ export function useWorkspaceJobs() {
   const [cancelJobId, setCancelJobId] = useState<string | null>(null);
 
   useEffect(() => {
-    const stored = loadInitialJobs();
-    saveJobs(stored);
+    let cancelled = false;
 
-    if (stored.length > 0) {
-      openDB()
-        .then(db => {
-          if (!db) return;
-          const request = db.transaction(IMG_STORE, 'readonly').objectStore(IMG_STORE).getAll();
-          request.onsuccess = () => {
-            const imageMap = new Map<string, StoredJob>();
-            for (const image of request.result as StoredJob[]) {
-              imageMap.set(image.id, image);
-            }
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const stored = loadInitialJobs();
+      jobsRef.current = stored;
+      setJobs(stored);
+      saveJobs(stored);
 
-            setJobs(prev => prev.map(job => {
-              const image = imageMap.get(job.id);
-              if (!image) return job;
+      if (stored.length > 0) {
+        openDB()
+          .then(db => {
+            if (cancelled || !db) return;
+            const request = db.transaction(IMG_STORE, 'readonly').objectStore(IMG_STORE).getAll();
+            request.onsuccess = () => {
+              if (cancelled) return;
+              const imageMap = new Map<string, StoredJob>();
+              for (const image of request.result as StoredJob[]) {
+                imageMap.set(image.id, image);
+              }
 
-              const persistedImages = image.images || (image.imageData ? [image.imageData] : []);
-              if (persistedImages.length === 0) return job;
+              setJobs(prev => prev.map(job => {
+                const image = imageMap.get(job.id);
+                if (!image) return job;
 
-              return {
-                ...job,
-                images: persistedImages,
-                imageData: persistedImages[0],
-                refImages: image.refImages,
-                error: image.error,
-              };
-            }));
-            setLoadedImages(new Set(imageMap.keys()));
-          };
-        })
-        .catch(() => undefined);
-    }
+                const persistedImages = image.images || (image.imageData ? [image.imageData] : []);
+                if (persistedImages.length === 0) return job;
+
+                return {
+                  ...job,
+                  images: persistedImages,
+                  imageData: persistedImages[0],
+                  refImages: image.refImages,
+                  error: image.error,
+                };
+              }));
+              setLoadedImages(new Set(imageMap.keys()));
+            };
+          })
+          .catch(() => undefined);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     const syncApiKeyState = () => setHasApiKey(hasAnyApiKey());
+    queueMicrotask(() => {
+      if (!cancelled) syncApiKeyState();
+    });
     window.addEventListener('nova-model-registry-updated', syncApiKeyState);
-    return () => window.removeEventListener('nova-model-registry-updated', syncApiKeyState);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('nova-model-registry-updated', syncApiKeyState);
+    };
   }, []);
 
   const persistJobs = useCallback((updater: (prev: StoredJob[]) => StoredJob[]) => {

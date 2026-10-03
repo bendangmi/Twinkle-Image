@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { createPortal } from 'react-dom';
 import { MessageSquare, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -47,16 +46,18 @@ export function SessionSwitcher({ activeSessionId, onSessionChange, mobileOpen, 
     else setInternalMobileOpen(open);
   };
 
-  const activeSession = sessions.find(s => s.id === activeSessionId);
-
   useEffect(() => {
-    if (!isMobileOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMobileOpenState(false);
+    const media = window.matchMedia('(min-width: 768px)');
+    const closeOnDesktop = () => {
+      if (media.matches) {
+        if (onMobileOpenChange) onMobileOpenChange(false);
+        else setInternalMobileOpen(false);
+      }
     };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isMobileOpen]);
+    closeOnDesktop();
+    media.addEventListener('change', closeOnDesktop);
+    return () => media.removeEventListener('change', closeOnDesktop);
+  }, [onMobileOpenChange]);
 
   const refreshSessions = () => setSessions(listAgentSessions());
 
@@ -209,7 +210,7 @@ export function SessionSwitcher({ activeSessionId, onSessionChange, mobileOpen, 
       {/* 桌面端正常展示侧边栏 */}
       <aside
         aria-label="Agent 会话"
-        className="hidden md:flex w-52 shrink-0 flex-col self-stretch rounded-2xl border border-border bg-card/60"
+        className="hidden min-h-0 w-44 shrink-0 flex-col self-stretch rounded-2xl border border-border bg-card/60 md:flex lg:w-52"
       >
         <div className="flex items-center justify-between border-b border-border px-3 py-2">
           <span className="text-sm font-medium">会话</span>
@@ -234,52 +235,32 @@ export function SessionSwitcher({ activeSessionId, onSessionChange, mobileOpen, 
       </aside>
 
       {/* 移动端抽屉侧边栏（由 Agent 顶栏左侧按钮触发打开） */}
-      {isMobileOpen && typeof document !== 'undefined' && createPortal(
-        <div className="md:hidden fixed inset-0 z-50 flex" role="dialog" aria-modal="true" aria-label="会话侧边栏">
-          <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
-            onClick={() => setMobileOpenState(false)}
-          />
-          <div className="relative z-10 flex h-full w-72 max-w-[82vw] flex-col border-r border-border bg-card/95 p-3 shadow-2xl backdrop-blur-xl animate-in slide-in-from-left duration-200">
-            <div className="flex items-center justify-between border-b border-border/80 pb-2.5">
-              <div className="flex items-center gap-2">
+      <Dialog open={isMobileOpen} onOpenChange={setMobileOpenState}>
+        <DialogContent aria-label="会话侧边栏" showCloseButton={false} className="inset-y-0 left-0 right-auto flex h-dvh max-h-dvh w-72 max-w-[82vw] flex-col gap-0 rounded-none p-3 sm:inset-y-0 sm:left-0 sm:right-auto sm:top-0 sm:h-dvh sm:max-h-dvh sm:w-72 sm:max-w-[82vw] sm:translate-x-0 sm:translate-y-0 sm:rounded-none">
+          <DialogHeader className="border-b pb-3">
+            <div className="flex items-center justify-between gap-2">
+              <DialogTitle className="flex items-center gap-2">
                 <MessageSquare className="size-4 text-primary" />
-                <span className="text-sm font-semibold">会话管理</span>
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                  {sessions.length}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setMobileOpenState(false)}
-                className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                aria-label="关闭侧边栏"
-              >
+                会话管理
+                <span aria-hidden="true" className="text-xs font-normal text-muted-foreground">{sessions.length}</span>
+              </DialogTitle>
+              <Button type="button" variant="ghost" size="icon-sm" onClick={() => setMobileOpenState(false)} aria-label="关闭侧边栏">
                 <X className="size-4" />
-              </button>
-            </div>
-
-            <div className="py-2.5 border-b border-border/60">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="w-full justify-center gap-2 rounded-xl border-dashed border-primary/35 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 text-primary font-medium shadow-xs transition-all"
-                onClick={openCreateDialog}
-                disabled={busy}
-              >
-                <Plus className="size-4" />
-                新建会话
               </Button>
             </div>
-
-            <div className="flex-1 space-y-1 overflow-y-auto pt-2 pb-1">
-              {renderSessionItems(true)}
-            </div>
+            <DialogDescription>选择会话继续创作，记录仅保存在本机。</DialogDescription>
+          </DialogHeader>
+          <div className="border-b py-3">
+            <Button type="button" size="sm" variant="outline" className="w-full gap-2" onClick={openCreateDialog} disabled={busy}>
+              <Plus className="size-4" />
+              新建会话
+            </Button>
           </div>
-        </div>,
-        document.body
-      )}
+          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto py-2">
+            {renderSessionItems(true)}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={nameDialog !== null}

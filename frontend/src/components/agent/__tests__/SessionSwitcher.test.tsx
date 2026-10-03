@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SessionSwitcher } from '../SessionSwitcher';
 
 const sessionApi = vi.hoisted(() => ({
@@ -21,12 +21,15 @@ const designSession = { id: 'design', name: '设计草稿' };
 describe('SessionSwitcher sidebar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
     sessionApi.listAgentSessions.mockReturnValue([defaultSession, designSession]);
     sessionApi.createAgentSession.mockImplementation((name: string) => ({ id: 'new-session', name }));
     sessionApi.renameAgentSession.mockImplementation((id: string, name: string) => ({ id, name }));
     sessionApi.deleteAgentSession.mockImplementation(() => undefined);
     contextStore.deleteAgentSessionDatabase.mockResolvedValue(undefined);
   });
+
+  afterEach(() => vi.unstubAllGlobals());
 
   it('always renders the session list with a prominent create button instead of a hidden dropdown', () => {
     render(<SessionSwitcher activeSessionId="default" onSessionChange={vi.fn()} />);
@@ -161,7 +164,7 @@ describe('SessionSwitcher sidebar', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: '新建会话' })).toBeEnabled());
   });
 
-  it('opens and closes the mobile sidebar drawer when triggered', () => {
+  it('opens and closes the mobile sidebar drawer when triggered', async () => {
     const onSessionChange = vi.fn();
     const onMobileOpenChange = vi.fn();
     const { rerender } = render(
@@ -173,7 +176,7 @@ describe('SessionSwitcher sidebar', () => {
       />
     );
 
-    const drawer = screen.getByRole('dialog', { name: '会话侧边栏' });
+    const drawer = await screen.findByRole('dialog', { name: '会话管理' });
     expect(drawer).toBeInTheDocument();
 
     const closeBtn = within(drawer).getByRole('button', { name: '关闭侧边栏' });
@@ -188,7 +191,7 @@ describe('SessionSwitcher sidebar', () => {
         onMobileOpenChange={onMobileOpenChange}
       />
     );
-    expect(screen.queryByRole('dialog', { name: '会话侧边栏' })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '会话管理' })).not.toBeInTheDocument());
   });
 
   it('selects a session and closes drawer on mobile', async () => {
@@ -203,7 +206,7 @@ describe('SessionSwitcher sidebar', () => {
       />
     );
 
-    const drawer = screen.getByRole('dialog', { name: '会话侧边栏' });
+    const drawer = await screen.findByRole('dialog', { name: '会话管理' });
 
     await act(async () => {
       fireEvent.click(within(drawer).getByRole('button', { name: '设计草稿' }));

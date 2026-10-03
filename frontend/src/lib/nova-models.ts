@@ -423,8 +423,6 @@ function ensureDefaults(raw: Partial<DefaultModels> | undefined, imageModels: Im
   const firstTextModelId = completeTextModels[0]?.id || '';
   const next = { ...DEFAULT_DEFAULTS, ...raw };
 
-  next.textToImage = firstImageModelId;
-  next.imageToImage = firstImageModelId;
   if (!completeTextModels.some((model) => model.id === next.reversePrompt)) next.reversePrompt = firstTextModelId;
   if (!completeTextModels.some((model) => model.id === next.agent)) next.agent = firstTextModelId;
   if (!completeTextModels.some((model) => model.id === next.promptOptimize)) next.promptOptimize = firstTextModelId;
@@ -591,7 +589,7 @@ export function deriveImageAndTextModels(providers: ProviderConfig[]): {
       if (entry.uses.includes('image')) {
         const presetId = resolveDerivedImagePreset(provider.kind, entry.modelId, entry.builtinPreset);
         const preset = BUILTIN_IMAGE_PRESETS[presetId];
-        const protocol = resolveDerivedImageProtocol(provider.kind, entry.modelId, presetId);
+        const protocol = entry.imageProtocol || resolveDerivedImageProtocol(provider.kind, entry.modelId, presetId);
         imageModels.push({
           id: entry.imageConfigId || `${provider.id}::img::${entry.modelId}`,
           protocol,

@@ -412,9 +412,8 @@ export function WorkspaceShell() {
               <TabsContent
                 value="agent"
                 keepMounted
-                className={cn('flex-1 flex flex-col min-h-0', wideMode && 'xl:flex xl:min-h-0 xl:flex-1 xl:flex-col')}
+                className="flex min-h-0 min-w-0 flex-1 gap-3 md:flex-row"
               >
-                <div className="mb-2 flex justify-end">
                   {activeSessionId && (
                     <SessionSwitcher
                       activeSessionId={activeSessionId}
@@ -423,7 +422,6 @@ export function WorkspaceShell() {
                       onMobileOpenChange={setAgentSidebarOpen}
                     />
                   )}
-                </div>
                 {activeSessionId && (
                   <AgentChatWorkspace
                     key={activeSessionId}
@@ -431,6 +429,7 @@ export function WorkspaceShell() {
                     wideMode={wideMode}
                     disabled={!workspace.hasApiKey}
                     onConfigureApiKey={() => setSettingsOpen(true)}
+                    onToggleSidebar={() => setAgentSidebarOpen(true)}
                   />
                 )}
               </TabsContent>

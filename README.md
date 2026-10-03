@@ -11,7 +11,7 @@ Twinkle Image is a self-hosted AI image-creation workspace derived from Nova Ima
 
 | Item | Current value |
 | --- | --- |
-| Fork version | `3.3.3` |
+| Fork version | `3.3.4` |
 | Upstream baseline | `v3.3.0` (`7041092`) |
 | Maintained branch | `main` |
 | Fork repository | `https://github.com/bendangmi/Twinkle-Image.git` |
@@ -123,7 +123,11 @@ npm run dev:frontend
 
 Open <http://127.0.0.1:46311>. The backend listens on `46312` with the sample local configuration. Model credentials and endpoints are configured through the application settings; do not bake personal credentials into a public image.
 
-For the optional Electron desktop shell, install root dependencies with `npm install`, then use `npm run electron:dev` or `npm run electron:dist:win` / `npm run electron:dist:mac`. In Settings, expand the provider management section to share one API key across text and image models. Twinkle Model login and the original model editor remain available.
+For the optional Electron desktop shell, install root dependencies with `npm install`, then use `npm run electron:dev` or `npm run electron:dist:win` / `npm run electron:dist:mac`. Settings uses a single provider-based configuration: enter a shared API key, fetch or manually add models, and choose their image/text use and request protocol. Select Twinkle Model and sign in to retrieve the system default key and automatically configure GPT Image 2, Banana Pro, and gpt-5.6-sol under one provider. Existing custom models are preserved; image capability overrides and workflow defaults remain editable. Use Save settings for manual changes; Twinkle sign-in saves its configuration automatically.
+
+Fetching a provider's model list only opens a searchable preview. New models are unchecked by default; select the models you want and choose Add selected models, then Save settings. Already configured models are marked and cannot be added twice. Fetching or cancelling the preview does not change the configured model list.
+
+The Agent workspace places conversation history beside the chat on desktop. On mobile, open the conversation drawer from the Agent header; the drawer supports keyboard focus, Escape, and dismissal without reducing the chat height.
 
 ## Data and Configuration
 

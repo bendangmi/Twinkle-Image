@@ -6,16 +6,16 @@ import {
   type NovaModelRegistry,
   type TextModelConfig,
 } from '@/lib/nova-models';
-import { migrateLegacyProviders } from '@/lib/provider-registry';
+import { migrateLegacyProviders, type ProviderConfig } from '@/lib/provider-registry';
 
 export const TWINKLE_MODEL_ACCOUNT_URL = 'https://big-model.smart-agi.com';
 export const TWINKLE_MODEL_REQUEST_BASE_URL = 'https://st.smart-agi.com';
 export const TWINKLE_MODEL_KEY_NAME = '系统默认密钥';
+export const TWINKLE_MODEL_PROVIDER_ID = 'twinkle-model';
 const TWINKLE_MODEL_PROXY_TIMEOUT_MS = 20_000;
 
 const SESSION_STORAGE_KEY = 'twinkle-model-session';
 const GPT_IMAGE_MODEL_ID = 'default-gpt-image-2';
-const GPT_IMAGE_25_MODEL_ID = 'default-gpt-image-2.5';
 const BANANA_PRO_MODEL_ID = 'default-banana-pro';
 const GPT_TEXT_MODEL_ID = 'default-gpt-5-5';
 
@@ -243,22 +243,19 @@ function upsertImageModel(
   stableId: string,
   presetId: 'gpt-image-2' | 'gemini-3-pro-image-preview',
   apiKey: string,
-  options: {
-    matchPreset?: boolean;
-    name?: string;
-    modelId?: string;
-  } = {},
 ): { model: ImageModelConfig; remaining: ImageModelConfig[] } {
   const preset = BUILTIN_IMAGE_PRESETS[presetId];
-  const existingIndex = models.findIndex(model => model.id === stableId || (
-    options.matchPreset !== false && model.builtinPreset === presetId
+  const existingIndex = models.findIndex(model => (
+    (model.id === stableId || model.id === `twinkle-${stableId}`) && (!model.apiKey || model.baseUrl === TWINKLE_MODEL_REQUEST_BASE_URL)
+  ) || (
+    model.baseUrl === TWINKLE_MODEL_REQUEST_BASE_URL && model.modelId === preset.modelId && model.builtinPreset === presetId
   ));
   const existing = existingIndex >= 0 ? models[existingIndex] : null;
   const model: ImageModelConfig = {
-    id: existing?.id || stableId,
+    id: existing?.id || (models.some(model => model.id === stableId) ? `twinkle-${stableId}` : stableId),
     protocol: preset.protocol,
-    name: options.name || preset.name,
-    modelId: options.modelId || preset.modelId,
+    name: preset.name,
+    modelId: preset.modelId,
     apiKey,
     baseUrl: TWINKLE_MODEL_REQUEST_BASE_URL,
     builtinPreset: preset.id,
@@ -273,15 +270,17 @@ function upsertImageModel(
 }
 
 function upsertTextModel(models: TextModelConfig[], apiKey: string): { model: TextModelConfig; remaining: TextModelConfig[] } {
-  const existingIndex = models.findIndex(model => model.id === GPT_TEXT_MODEL_ID || (
-    model.protocol === 'openai-responses' && (
+  const existingIndex = models.findIndex(model => (
+    (model.id === GPT_TEXT_MODEL_ID || model.id === `twinkle-${GPT_TEXT_MODEL_ID}`) && (!model.apiKey || model.baseUrl === TWINKLE_MODEL_REQUEST_BASE_URL)
+  ) || (
+    model.baseUrl === TWINKLE_MODEL_REQUEST_BASE_URL && model.protocol === 'openai-responses' && (
       model.modelId === 'gpt-5.5' || model.modelId === 'gpt-5.6-sol'
     )
   ));
   const existing = existingIndex >= 0 ? models[existingIndex] : null;
   return {
     model: {
-      id: existing?.id || GPT_TEXT_MODEL_ID,
+      id: existing?.id || (models.some(model => model.id === GPT_TEXT_MODEL_ID) ? `twinkle-${GPT_TEXT_MODEL_ID}` : GPT_TEXT_MODEL_ID),
       protocol: 'openai-responses',
       name: 'gpt-5.6-sol',
       modelId: 'gpt-5.6-sol',
@@ -298,29 +297,32 @@ export function applyTwinkleModelKeys(
   key: TwinkleModelDefaultKey,
 ): NovaModelRegistry {
   const gptImage = upsertImageModel(registry.imageModels, GPT_IMAGE_MODEL_ID, 'gpt-image-2', key);
-  const gptImage25 = upsertImageModel(
-    gptImage.remaining,
-    GPT_IMAGE_25_MODEL_ID,
-    'gpt-image-2',
-    key,
-    {
-      matchPreset: false,
-      name: 'GPT Image 2.5',
-      modelId: 'gpt-image-2.5',
-    },
-  );
-  const banana = upsertImageModel(gptImage25.remaining, BANANA_PRO_MODEL_ID, 'gemini-3-pro-image-preview', key);
+  const banana = upsertImageModel(gptImage.remaining, BANANA_PRO_MODEL_ID, 'gemini-3-pro-image-preview', key);
   const text = upsertTextModel(registry.textModels, key);
-  const imageModels = [gptImage25.model, gptImage.model, banana.model, ...banana.remaining];
+  const imageModels = [gptImage.model, banana.model, ...banana.remaining];
   const textModels = [text.model, ...text.remaining];
-  const configuredIds = new Set([gptImage25.model.id, gptImage.model.id, banana.model.id, text.model.id]);
-  const remainingProviders = registry.providers?.map(provider => ({
+  const configuredIds = new Set([gptImage.model.id, banana.model.id, text.model.id]);
+  const existingProviders = registry.providers || migrateLegacyProviders(registry.imageModels, registry.textModels);
+  const twinkleProviders = existingProviders.filter(provider => provider.id === TWINKLE_MODEL_PROVIDER_ID || (
+    provider.baseUrl === TWINKLE_MODEL_REQUEST_BASE_URL && provider.apiKey === key
+  ));
+  const twinkleProviderIds = new Set(twinkleProviders.map(provider => provider.id));
+  const remainingProviders = existingProviders.map(provider => ({
     ...provider,
     models: provider.models.filter(model => !configuredIds.has(model.imageConfigId || '') && !configuredIds.has(model.textConfigId || '')),
-  })).filter(provider => provider.models.length > 0);
-  const providers = registry.providers
-    ? [...(remainingProviders || []), ...migrateLegacyProviders(imageModels.slice(0, 3), textModels.slice(0, 1))]
-    : migrateLegacyProviders(imageModels, textModels);
+  })).filter((provider, index) => !twinkleProviderIds.has(provider.id) && (provider.models.length > 0 || existingProviders[index].models.length === 0));
+  const twinkleProvider: ProviderConfig = {
+    id: TWINKLE_MODEL_PROVIDER_ID,
+    name: 'Twinkle Model',
+    kind: 'openai-compatible',
+    apiKey: key,
+    baseUrl: TWINKLE_MODEL_REQUEST_BASE_URL,
+    models: [
+      ...migrateLegacyProviders(imageModels.slice(0, 2), textModels.slice(0, 1)).flatMap(provider => provider.models),
+      ...twinkleProviders.flatMap(provider => provider.models).filter(model => !configuredIds.has(model.imageConfigId || '') && !configuredIds.has(model.textConfigId || '')),
+    ],
+  };
+  const providers = [twinkleProvider, ...remainingProviders];
 
   return {
     ...registry,
@@ -328,15 +330,15 @@ export function applyTwinkleModelKeys(
     imageModels,
     textModels,
     defaults: {
-      textToImage: gptImage25.model.id,
-      imageToImage: gptImage25.model.id,
+      textToImage: gptImage.model.id,
+      imageToImage: gptImage.model.id,
       reversePrompt: text.model.id,
       agent: text.model.id,
       promptOptimize: text.model.id,
       imageDescribe: text.model.id,
       sliceDecomposition: text.model.id,
       sliceReconstruct: text.model.id,
-      sliceImageEdit: gptImage25.model.id,
+      sliceImageEdit: gptImage.model.id,
     },
   };
 }

@@ -589,7 +589,7 @@ export function AgentChatWorkspace({
     <div
       ref={containerRef}
       className={cn(
-        'relative flex h-full min-w-0 flex-1 min-h-[400px] flex-col rounded-2xl border border-border bg-card/60 overflow-hidden',
+        'relative flex h-full min-w-0 flex-1 min-h-0 flex-col rounded-2xl border border-border bg-card/60 overflow-hidden',
         wideMode && 'h-full min-h-0 w-full'
       )}
       onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}

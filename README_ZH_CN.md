@@ -11,7 +11,7 @@ Twinkle Image 是基于 Nova Image Studio 二次开发的自托管 AI 图片创�
 
 | 项目 | 当前值 |
 | --- | --- |
-| 二开版本 | `3.3.3` |
+| 二开版本 | `3.3.4` |
 | 上游基线 | `v3.3.0`（`7041092`） |
 | 维护分支 | `main` |
 | 二开仓库 | `https://github.com/bendangmi/Twinkle-Image.git` |
@@ -123,7 +123,11 @@ npm run dev:frontend
 
 访问 <http://127.0.0.1:46311>。使用本地示例配置时，后端监听 `46312`。模型凭据与地址通过应用设置管理，不要把个人凭据写入公共镜像。
 
-桌面端可选：先运行 `npm install` 安装根目录依赖，再使用 `npm run electron:dev` 启动，或使用 `npm run electron:dist:win` / `npm run electron:dist:mac` 打包。设置中的供应商管理可让文本与图片模型共用同一把 API Key；Twinkle Model 登录与原有模型编辑器仍可使用。
+桌面端可选：先运行 `npm install` 安装根目录依赖，再使用 `npm run electron:dev` 启动，或使用 `npm run electron:dist:win` / `npm run electron:dist:mac` 打包。设置统一以供应商为配置入口：填写共享 API Key，读取或手动添加模型，再选择图片/文本用途和请求协议。选择 Twinkle Model 并登录后，会读取系统默认密钥，自动在同一个供应商下配置 GPT Image 2、Banana Pro 和 gpt-5.6-sol。已有自定义模型保留，图片高级选项与工作流默认模型仍可调整。手动修改统一点击「保存设置」；Twinkle 登录配置会自动保存。
+
+「获取模型列表」只展示可搜索的上游模型列表，新模型默认不勾选。选择需要的模型后点击「加入待选模型」，再点击「保存设置」生效。已配置模型标记为「已加入」并禁用重复选择；获取列表或取消选择都不会修改已有模型配置。
+
+Agent 工作区在桌面端采用左侧会话历史、右侧对话的布局。手机端通过 Agent 标题旁的按钮打开会话抽屉，不再挤占对话高度；抽屉支持键盘焦点、Escape 关闭和遮罩关闭。
 
 ## 数据与配置
 
